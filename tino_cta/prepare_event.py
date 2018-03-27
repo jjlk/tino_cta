@@ -30,7 +30,7 @@ ctapipe.calib.camera.dl1.integration_correction = null_integration_correction_fu
 
 
 PreparedEvent = namedtuple("PreparedEvent",
-                           ["event", "hillas_dict", "n_tels",
+                           ["event", "n_pixel_dict", "hillas_dict", "n_tels",
                             "tot_signal", "max_signals",
                             "pos_fit", "dir_fit", "h_max",
                             "err_est_pos", "err_est_dir"
@@ -38,7 +38,7 @@ PreparedEvent = namedtuple("PreparedEvent",
 
 
 def stub(event):
-    return PreparedEvent(event=event, hillas_dict=None, n_tels=None,
+    return PreparedEvent(event=event, n_pixel_dict=None, hillas_dict=None, n_tels=None,
                          tot_signal=None, max_signals=None,
                          pos_fit=None, dir_fit=None, h_max=None,
                          err_est_pos=None, err_est_dir=None)
@@ -135,12 +135,13 @@ class EventPreparer():
             # telescope loop
             tot_signal = 0
             max_signals = {}
+            n_pixel_dict = {}
             hillas_dict = {}
             n_tels = {"tot": len(event.dl0.tels_with_data),
                       "LST": 0, "MST": 0, "SST": 0}
             for tel_id in event.dl0.tels_with_data:
                 self.image_cutflow.count("noCuts")
-
+                
                 camera = event.inst.subarray.tel[tel_id].camera
 
                 # can this be improved?
@@ -179,7 +180,7 @@ class EventPreparer():
                     continue
                 except EdgeEvent:
                     continue
-
+                
                 # could this go into `hillas_parameters` ...?
                 max_signals[tel_id] = np.max(pmt_signal)
 
@@ -248,8 +249,9 @@ class EventPreparer():
                         continue
 
                 hillas_dict[tel_id] = moments
+                n_pixel_dict[tel_id] = len(np.where(im>0)[0])
                 tot_signal += moments.size
-
+                
             n_tels["reco"] = len(hillas_dict)
             if self.event_cutflow.cut("min2Tels reco", n_tels["reco"]):
                 if return_stub:
@@ -281,8 +283,9 @@ class EventPreparer():
                 else:
                     continue
 
-            yield PreparedEvent(event=event, hillas_dict=hillas_dict, n_tels=n_tels,
-                                tot_signal=tot_signal, max_signals=max_signals,
+            yield PreparedEvent(event=event, n_pixel_dict=n_pixel_dict, hillas_dict=hillas_dict,
+                                n_tels=n_tels, tot_signal=tot_signal, max_signals=max_signals,
                                 pos_fit=pos_fit, dir_fit=dir_fit, h_max=h_max,
                                 err_est_pos=err_est_pos, err_est_dir=err_est_dir
                                 )
+
