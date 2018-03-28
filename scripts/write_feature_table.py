@@ -44,7 +44,8 @@ if __name__ == "__main__":
     parser.add_argument('--wave_temp_dir', type=str, default='/dev/shm/',
                         help="directory where mr_filter to store the temporary fits"
                              " files")
-
+    parser.add_argument('--ascii_list', type=str, default=None, help='ASCII list containing the name of the files to be used')
+    
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--gamma', default=True, action='store_true',
                        help="do gammas (default)")
@@ -60,6 +61,8 @@ if __name__ == "__main__":
         for f in args.infile_list:
             filenamelist += glob("{}/{}".format(args.indir, f))
         filenamelist.sort()
+    elif args.ascii_list is not None:
+        filenamelist = [args.indir + '/' + line.rstrip('\n') for line in open(args.ascii_list)]
     elif args.proton:
         filenamelist = glob("{}/proton/*gz".format(args.indir))
         channel = "proton"
@@ -121,6 +124,12 @@ if __name__ == "__main__":
         err_est_pos = tb.Float32Col(dflt=1, pos=12)
         err_est_dir = tb.Float32Col(dflt=1, pos=13)
         MC_Energy = tb.FloatCol(dflt=1, pos=14)
+        local_distance = tb.Float32Col(dflt=1, pos=15)
+        n_pixel = tb.Int16Col(dflt=1, pos=16)
+        n_cluster = tb.Int16Col(dflt=1, pos=16)
+        run_id = tb.Int16Col(dflt=1, pos=16)
+        event_id = tb.Int16Col(dflt=1, pos=16)
+        tel_id = tb.Int16Col(dflt=1, pos=16)
 
     feature_outfile = tb.open_file(args.outfile, mode="w")
     feature_table = {}
@@ -131,8 +140,12 @@ if __name__ == "__main__":
     n_total_img = []
     mc_energy = []
 
-    allowed_tels = set(prod3b_tel_ids("L+N+D"))
-    for i, filename in enumerate(filenamelist[:50][:args.last]):
+    # Full-array south
+    #allowed_tels = set(prod3b_tel_ids("L+N+D"))
+    # Subarray LSTs, south
+    allowed_tels = set(prod3b_tel_ids('subarray_LSTs'))
+    #for i, filename in enumerate(filenamelist[:50][:args.last]):
+    for i, filename in enumerate(filenamelist[:args.last]):
         print("file: {} filename = {}".format(i, filename))
 
         source = hessio_event_source(filename,
@@ -140,14 +153,14 @@ if __name__ == "__main__":
                                      max_events=args.max_events)
 
         # loop that cleans and parametrises the images and performs the reconstruction
-        for (event, hillas_dict, n_tels,
+        for (event, n_pixel_dict, hillas_dict, n_tels,
              tot_signal, max_signals, pos_fit, dir_fit, h_max,
              err_est_pos, err_est_dir) in preper.prepare_event(source):
 
             n_faint = 0
             for tel_id in hillas_dict.keys():
                 cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
-
+                
                 if cam_id not in feature_events:
                     feature_table[cam_id] = feature_outfile.create_table(
                         '/', '_'.join(["feature_events", cam_id]), EventFeatures)
@@ -175,6 +188,12 @@ if __name__ == "__main__":
                 feature_events[cam_id]["err_est_pos"] = err_est_pos / dist_unit
                 feature_events[cam_id]["err_est_dir"] = err_est_dir / angle_unit
                 feature_events[cam_id]["MC_Energy"] = event.mc.energy / energy_unit
+                feature_events[cam_id]["local_distance"] = moments.r / moments.r.unit
+                feature_events[cam_id]["n_pixel"] = n_pixel_dict[tel_id]
+                feature_events[cam_id]["run_id"] = event.r0.run_id
+                feature_events[cam_id]["event_id"] = event.r0.event_id
+                feature_events[cam_id]["tel_id"] = tel_id
+                
                 feature_events[cam_id].append()
 
             n_faint_img.append(n_faint)
@@ -186,29 +205,5 @@ if __name__ == "__main__":
         if signal_handler.stop:
             break
 
-    # make sure that all the events are properly stored
-    for table in feature_table.values():
-        table.flush()
-
-    # def averages(values, bin_values, bin_edges):
-    #     averages_binned = \
-    #         np.squeeze(np.full((len(bin_edges) - 1, len(values.shape)), np.inf))
-    #     for i, (bin_l, bin_h) in enumerate(zip(bin_edges[:-1], bin_edges[1:])):
-    #         try:
-    #             averages_binned[i] = \
-    #                 np.mean(values[(bin_values > bin_l) & (bin_values < bin_h)])
-    #         except IndexError:
-    #             pass
-    #     return averages_binned.T
-
-    # energy_bin_edges = np.logspace(-2.1, 2.5, 24)
-    # faint_img_fraction = np.array(n_faint_img) / np.array(n_total_img)
-    # faint_img_fraction_averages = averages(faint_img_fraction, mc_energy,
-    #                                        energy_bin_edges)
-    # plt.figure()
-    # plt.semilogx(np.sqrt(energy_bin_edges[1:] * energy_bin_edges[:-1]),
-    #              faint_img_fraction_averages)
-    # plt.xlabel(r'$E_\mathrm{reco}$' + ' / {:latex}'.format(energy_unit))
-    # plt.ylabel("fraction of faint imgages (pe < 100) per event")
-    # save_fig("plots/faint_img_fraction_{}_{}".format(args.mode, channel))
-#    plt.show()
+    Eventcutflow()
+    Imagecutflow()
