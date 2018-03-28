@@ -23,8 +23,6 @@ from ctapipe.coordinates.coordinate_transformations import (
 def null_integration_correction_func(n_chan, pulse_shape, refstep, time_slice,
                                      window_width, window_shift):
     return np.ones(n_chan)
-
-
 # apply the patch
 ctapipe.calib.camera.dl1.integration_correction = null_integration_correction_func
 
@@ -157,7 +155,8 @@ class EventPreparer():
 
                 # count the current telescope according to its size
                 tel_type = event.inst.subarray.tel[tel_id].optics.tel_type
-                n_tels[tel_type] += 1
+                # JLK, N telescopes are not really interesting for discrimination, too much fluctuations
+                # n_tels[tel_type] += 1
 
                 # the camera image as a 1D array
                 pmt_signal = event.dl1.tel[tel_id].image
@@ -248,8 +247,9 @@ class EventPreparer():
                     except (FloatingPointError, hillas.HillasParameterizationError):
                         continue
 
+                n_tels[tel_type] += 1
                 hillas_dict[tel_id] = moments
-                n_pixel_dict[tel_id] = len(np.where(im>0)[0])
+                n_pixel_dict[tel_id] = len(np.where(pmt_signal>0)[0])
                 tot_signal += moments.size
                 
             n_tels["reco"] = len(hillas_dict)
@@ -268,7 +268,8 @@ class EventPreparer():
                     pos_fit, err_est_pos = self.shower_reco.fit_core_crosses()
                     dir_fit, err_est_dir = self.shower_reco.fit_origin_crosses()
                     h_max = self.shower_reco.fit_h_max(
-                        hillas_dict, event.inst.subarray, tel_phi, tel_theta)
+                        hillas_dict, event.inst.subarray, tel_phi, tel_theta
+                    )
             except Exception as e:
                 print("exception in reconstruction:", e)
                 if return_stub:
