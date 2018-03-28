@@ -6,6 +6,18 @@ import matplotlib.pyplot as plt
 
 import signal
 
+# def get_cam_radius(cam_id):
+#     """
+#     From Mars analysis (Abelardo private communication)
+#     """
+#     if cam_id in 'LSTCam':
+#         return 2.31 * u.deg
+#     elif cam_id in 'NectarCam':
+#         return 4.05 * u.deg
+#     elif cam_id in 'DigiCam':
+#         return 4.56 * u.deg
+#     else:
+#         pass
 
 class SignalHandler():
     ''' handles ctrl+c signals; set up via
@@ -258,7 +270,6 @@ def prod3b_tel_ids(cam_id, site="south"):
             tel_ids = np.arange(252, 410)
         elif cam_id == "DigiCam":
             tel_ids = np.arange(410, 567)
-
         elif cam_id == "L+F+A":
             tel_ids = np.array([4, 5, 6, 11, 12, 13, 14, 15, 16, 19, 20, 23, 24,
                                 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 47, 48,
@@ -303,6 +314,8 @@ def prod3b_tel_ids(cam_id, site="south"):
                                 526, 527, 528, 529, 536, 537, 538, 539, 540, 541, 542,
                                 543, 544, 545, 550, 551, 552, 553, 554, 555, 556, 557,
                                 558, 559, 560, 561])
+        elif cam_id in 'subarray_LSTs':
+            tel_ids = np.array([4, 5, 6, 11])
 
         else:
             raise ValueError("cam_id {} not supported".format(cam_id))
