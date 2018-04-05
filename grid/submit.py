@@ -3,7 +3,6 @@
 import os
 from os.path import basename, expandvars
 import sys
-import subprocess
 import glob
 import re
 import random
@@ -30,21 +29,13 @@ dirac = Dirac()
 
 # list of files on my GRID SE space
 # not submitting jobs where we already have the output
-batcmd = 'dirac-dms-user-lfns'
-result = subprocess.check_output(batcmd, shell=True)
-try:
-    GRID_filelist = open(result.split()[-1]).read()
-except IOError:
-    raise IOError("cannot read GRID filelist...")
-
-
-# also get the user name from `result`
-for i, token in enumerate(result.split('/')):
-    if token == 'user':
-        username = result.split('/')[i + 2].strip()
+while True:
+    try:
+        #GRID_filelist = open('vo.cta.in2p3.fr-user-t-tmichael.lfns').read()
+        GRID_filelist = open('vo.cta.in2p3.fr-user-j-jlefaucheur.lfns').read()
         break
-else:
-    raise ValueError("could not determine username...")
+    except IOError:
+        os.system('dirac-dms-user-lfns')
 
 
 #   ######  ######## ######## ######## ########  #### ##    ##  ######
@@ -70,40 +61,41 @@ banned_sites = [
 ]
 
 cam_id_list = ["LSTCam", "NectarCam", "DigiCam"]
+modes = ['tail']
 
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
 execute = './classify_and_reconstruct.py'
 pilot_args_classify = ' '.join([
-    source_ctapipe, '&&',
-    execute,
-    '--classifier ./{classifier}',
-    '--regressor ./{regressor}',
-    '--outfile {outfile}',
-    '--indir ./ --infile_list *.simtel.gz',
-    '--{mode}',
-    '--cam_ids'] + cam_id_list)
+        source_ctapipe, '&&',
+        execute,
+        '--classifier ./{classifier}',
+        '--regressor ./{regressor}',
+        '--outfile {outfile}',
+        '--indir ./ --infile_list *.simtel.gz',
+        '--{mode}',
+        '--cam_ids'] + cam_id_list)
 pilot_args_append = ' '.join([
-    source_ctapipe, '&&',
-    './append_tables.py',
-    '--infiles_base', '{in_name}',
-    '--outfile', '{out_name}'])
+        source_ctapipe, '&&',
+        './append_tables.py',
+        '--infiles_base', '{in_name}',
+        '--outfile', '{out_name}'])
 
 expandvars
 # files containing lists of the Prod3b files on the GRID
 prod3b_filelist_gamma = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-                             "Paranal_gamma_North_20deg_HB9_good.list"))
+                             "Paranal_gamma_North_20deg_HB9_merged.list"))
 prod3b_filelist_proton = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-                              "Paranal_proton_North_20deg_HB9_good.list"))
+                              "Paranal_proton_North_20deg_HB9_merged.list"))
 prod3b_filelist_electron = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-                                "Paranal_electron_North_20deg_HB9_good.list"))
+                                "Paranal_electron_North_20deg_HB9_merged.list"))
 
 
 # number of files per job
 window_sizes = [25] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
-start_runs = [0, 0, 0]
+start_runs = [50, 50, 0]
 
 # how many jobs to submit at once
 NJobs = 200  # put at < 0 to deactivate
@@ -116,13 +108,16 @@ output_path = "cta/prod3b/paranal_LND_edge/"
 # sets all the local files that are going to be uploaded with the job plus the pickled
 # classifier (if the file name starts with `LFN:`, it will be copied from the GRID itself)
 input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
+                 expandvars('$CTA_SOFT/tino_cta/helper_functions.py'),
                  expandvars('$CTA_SOFT/tino_cta/snippets/append_tables.py'),
 
                  # python wrapper for the mr_filter wavelet cleaning
-                 expandvars('$CTA_SOFT/jeremie_cta/ctapipe-wavelet-cleaning/datapipe/'),
+                 #expandvars('$CTA_SOFT/jeremie_cta/ctapipe-wavelet-cleaning/datapipe/'),
+                 expandvars('$CTA_SOFT/pywi/pywi/'),
+                 expandvars('$CTA_SOFT/pywicta/pywicta/'),
 
                  # script that is being run
-                 expandvars('$CTA_SOFT/tino_cta/scripts/' + execute), 'pilot.sh',
+                 expandvars('$CTA_SOFT/tino_cta/' + execute), 'pilot.sh',
 
                  # the executable for the wavelet cleaning
                  'LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/v3_1/mr_filter'
@@ -132,7 +127,7 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
 model_path_template = \
     "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
 for cam_id in cam_id_list:
-    for mode in ["wave", "tail"]:
+    for mode in modes:
         for model in [("regressor", "RandomForestRegressor"),
                       ("classifier", "RandomForestClassifier")]:
             input_sandbox.append(
@@ -166,7 +161,8 @@ for status in ["Waiting", "Running", "Checking"]:
         try:
             [running_ids.add(id) for id in dirac.selectJobs(
                 status=status, date=day,
-                owner=username)['Value']]
+                #owner="tmichael")['Value']]
+                owner="jlefaucheur")['Value']]
         except KeyError:
             pass
 
@@ -218,10 +214,14 @@ for i, filelist in enumerate([
 
         # setting output name
         job_name = '_'.join([channel, run_token])
-        output_filename_wave = output_filename_template.format(
-            '_'.join(["wave", channel, run_token]))
-        output_filename_tail = output_filename_template.format(
-            '_'.join(["tail", channel, run_token]))
+        output_filenames = dict()
+        for mode in modes:
+            output_filenames[mode] = output_filename_template.format(
+                '_'.join([mode, channel, run_token]))
+        #output_filename_wave = output_filename_template.format(
+        #    '_'.join(["wave", channel, run_token]))
+        #output_filename_tail = output_filename_template.format(
+        #    '_'.join(["tail", channel, run_token]))
 
         # if job already running / waiting, skip
         if job_name in running_names:
@@ -231,8 +231,13 @@ for i, filelist in enumerate([
         # if file already in GRID storage, skip
         # (you cannot overwrite it there, delete it and resubmit)
         # (assumes tail and wave will always be written out together)
-        if '/'.join([output_path.strip('/'), output_filename_wave]) in GRID_filelist:
-            print("\n{} already on GRID SE\n".format(job_name))
+        already_exist = False
+        for mode in modes:
+            if output_filenames[mode] in GRID_filelist:
+                print("\n{} already on GRID SE\n".format(job_name))
+                already_exist = True
+                break
+        if already_exist == True:
             continue
 
         if NJobs == 0:
@@ -250,7 +255,6 @@ for i, filelist in enumerate([
 
         if banned_sites:
             j.setBannedSites(banned_sites)
-        # j.setDestination( 'LCG.IN2P3-CC.fr' )
 
         # mr_filter loses its executable property by uploading it to the GRID SE; reset
         j.setExecutable('chmod', '+x mr_filter')
@@ -271,7 +275,7 @@ for i, filelist in enumerate([
             j.setExecutable('dirac-dms-get-file', "LFN:" + run_file)
 
             # consecutively process file with wavelet and tailcut cleaning
-            for mode in ["wave", "tail"]:
+            for mode in modes:
                 # source the miniconda ctapipe environment and run the python script with
                 # all its arguments
                 output_filename_temp = output_filename_template.format(
@@ -297,23 +301,31 @@ for i, filelist in enumerate([
 
         # if there is more than one file per job, merge the output tables
         if window_sizes[i] > 1:
-            for in_name, out_name in [('classified_events_wave', output_filename_wave),
-                                      ('classified_events_tail', output_filename_tail)]:
+            names = []
+            for mode in modes:
+                names.append(('classified_events_' + mode, output_filenames[mode]))
+            for in_name, out_name in names:
+            #for in_name, out_name in [('classified_events_wave', output_filename_wave),
+            #                          ('classified_events_tail', output_filename_tail)]:
                 j.setExecutable('./pilot.sh',
                                 pilot_args_append.format(
                                     in_name=in_name,
                                     out_name=out_name))
 
-        print
-        print("OutputData: {}{}".format(output_path, output_filename_wave))
-        print("OutputData: {}{}".format(output_path, output_filename_tail))
-        j.setOutputData([output_filename_wave, output_filename_tail],
+        outputs = []
+        for mode in modes:
+            outputs.append(output_filenames[mode])
+            print("OutputData: {}{}".format(output_path, output_filenames[mode]))
+        #print("OutputData: {}{}".format(output_path, output_filename_wave))
+        #print("OutputData: {}{}".format(output_path, output_filename_tail))
+        #j.setOutputData([output_filename_wave, output_filename_tail],
+        j.setOutputData(outputs,
                         outputSE=None, outputPath=output_path)
 
         # check if we should somehow stop doing what we are doing
         if "dry" in sys.argv:
             print("\nrunning dry -- not submitting")
-            exit()
+            break
 
         # this sends the job to the GRID and uploads all the
         # files into the input sandbox in the process
@@ -323,12 +335,15 @@ for i, filelist in enumerate([
         # break if this is only a test submission
         if "test" in sys.argv:
             print("test run -- only submitting one job")
-            exit()
+            break
 
+    # since there are two nested loops, need to break again
+    if "dry" in sys.argv or "test" in sys.argv:
+        break
 
 try:
     os.remove("datapipe.tar.gz")
-    os.remove("tino_cta.tar.gz")
+    os.remove("modules.tar.gz")
 except:
     pass
 
