@@ -31,7 +31,8 @@ dirac = Dirac()
 # not submitting jobs where we already have the output
 while True:
     try:
-        GRID_filelist = open('vo.cta.in2p3.fr-user-t-tmichael.lfns').read()
+        #GRID_filelist = open('vo.cta.in2p3.fr-user-t-tmichael.lfns').read()
+        GRID_filelist = open('vo.cta.in2p3.fr-user-j-jlefaucheur.lfns').read()
         break
     except IOError:
         os.system('dirac-dms-user-lfns')
@@ -60,6 +61,7 @@ banned_sites = [
 ]
 
 cam_id_list = ["LSTCam", "NectarCam", "DigiCam"]
+modes = ['tail']
 
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
@@ -110,7 +112,9 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
                  expandvars('$CTA_SOFT/tino_cta/snippets/append_tables.py'),
 
                  # python wrapper for the mr_filter wavelet cleaning
-                 expandvars('$CTA_SOFT/jeremie_cta/ctapipe-wavelet-cleaning/datapipe/'),
+                 #expandvars('$CTA_SOFT/jeremie_cta/ctapipe-wavelet-cleaning/datapipe/'),
+                 expandvars('$CTA_SOFT/pywi/pywi/'),
+                 expandvars('$CTA_SOFT/pywicta/pywicta/'),
 
                  # script that is being run
                  expandvars('$CTA_SOFT/tino_cta/' + execute), 'pilot.sh',
@@ -123,7 +127,7 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
 model_path_template = \
     "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
 for cam_id in cam_id_list:
-    for mode in ["wave", "tail"]:
+    for mode in modes:
         for model in [("regressor", "RandomForestRegressor"),
                       ("classifier", "RandomForestClassifier")]:
             input_sandbox.append(
@@ -157,7 +161,8 @@ for status in ["Waiting", "Running", "Checking"]:
         try:
             [running_ids.add(id) for id in dirac.selectJobs(
                 status=status, date=day,
-                owner="tmichael")['Value']]
+                #owner="tmichael")['Value']]
+                owner="jlefaucheur")['Value']]
         except KeyError:
             pass
 
@@ -209,10 +214,14 @@ for i, filelist in enumerate([
 
         # setting output name
         job_name = '_'.join([channel, run_token])
-        output_filename_wave = output_filename_template.format(
-            '_'.join(["wave", channel, run_token]))
-        output_filename_tail = output_filename_template.format(
-            '_'.join(["tail", channel, run_token]))
+        output_filenames = dict()
+        for mode in modes:
+            output_filenames[mode] = output_filename_template.format(
+                '_'.join([mode, channel, run_token]))
+        #output_filename_wave = output_filename_template.format(
+        #    '_'.join(["wave", channel, run_token]))
+        #output_filename_tail = output_filename_template.format(
+        #    '_'.join(["tail", channel, run_token]))
 
         # if job already running / waiting, skip
         if job_name in running_names:
@@ -222,8 +231,13 @@ for i, filelist in enumerate([
         # if file already in GRID storage, skip
         # (you cannot overwrite it there, delete it and resubmit)
         # (assumes tail and wave will always be written out together)
-        if output_filename_wave in GRID_filelist:
-            print("\n{} already on GRID SE\n".format(job_name))
+        already_exist = False
+        for mode in modes:
+            if output_filenames[mode] in GRID_filelist:
+                print("\n{} already on GRID SE\n".format(job_name))
+                already_exist = True
+                break
+        if already_exist == True:
             continue
 
         if NJobs == 0:
@@ -261,7 +275,7 @@ for i, filelist in enumerate([
             j.setExecutable('dirac-dms-get-file', "LFN:" + run_file)
 
             # consecutively process file with wavelet and tailcut cleaning
-            for mode in ["wave", "tail"]:
+            for mode in modes:
                 # source the miniconda ctapipe environment and run the python script with
                 # all its arguments
                 output_filename_temp = output_filename_template.format(
@@ -287,17 +301,25 @@ for i, filelist in enumerate([
 
         # if there is more than one file per job, merge the output tables
         if window_sizes[i] > 1:
-            for in_name, out_name in [('classified_events_wave', output_filename_wave),
-                                      ('classified_events_tail', output_filename_tail)]:
+            names = []
+            for mode in modes:
+                names.append(('classified_events_' + mode, output_filenames[mode]))
+            for in_name, out_name in names:
+            #for in_name, out_name in [('classified_events_wave', output_filename_wave),
+            #                          ('classified_events_tail', output_filename_tail)]:
                 j.setExecutable('./pilot.sh',
                                 pilot_args_append.format(
                                     in_name=in_name,
                                     out_name=out_name))
 
-        print
-        print("OutputData: {}{}".format(output_path, output_filename_wave))
-        print("OutputData: {}{}".format(output_path, output_filename_tail))
-        j.setOutputData([output_filename_wave, output_filename_tail],
+        outputs = []
+        for mode in modes:
+            outputs.append(output_filenames[mode])
+            print("OutputData: {}{}".format(output_path, output_filenames[mode]))
+        #print("OutputData: {}{}".format(output_path, output_filename_wave))
+        #print("OutputData: {}{}".format(output_path, output_filename_tail))
+        #j.setOutputData([output_filename_wave, output_filename_tail],
+        j.setOutputData(outputs,
                         outputSE=None, outputPath=output_path)
 
         # check if we should somehow stop doing what we are doing
