@@ -204,6 +204,9 @@ if __name__ == "__main__":
                 break
         if signal_handler.stop:
             break
+    # make sure that all the events are properly stored
+    for table in feature_table.values():
+        table.flush()
 
     Eventcutflow()
     Imagecutflow()
