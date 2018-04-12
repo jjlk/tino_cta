@@ -65,10 +65,10 @@ modes = ['tail']
 
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
-execute = './classify_and_reconstruct.py'
+execute = 'classify_and_reconstruct.py'
 pilot_args_classify = ' '.join([
         source_ctapipe, '&&',
-        execute,
+        './' + execute,
         '--classifier ./{classifier}',
         '--regressor ./{regressor}',
         '--outfile {outfile}',
@@ -108,7 +108,7 @@ output_path = "cta/prod3b/paranal_LND_edge/"
 # sets all the local files that are going to be uploaded with the job plus the pickled
 # classifier (if the file name starts with `LFN:`, it will be copied from the GRID itself)
 input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
-                 expandvars('$CTA_SOFT/tino_cta/helper_functions.py'),
+                 #expandvars('$CTA_SOFT/tino_cta/helper_functions.py'),
                  expandvars('$CTA_SOFT/tino_cta/snippets/append_tables.py'),
 
                  # python wrapper for the mr_filter wavelet cleaning
@@ -117,7 +117,7 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
                  expandvars('$CTA_SOFT/pywicta/pywicta/'),
 
                  # script that is being run
-                 expandvars('$CTA_SOFT/tino_cta/' + execute), 'pilot.sh',
+                 expandvars('$CTA_SOFT/tino_cta/scripts/' + execute), 'pilot.sh',
 
                  # the executable for the wavelet cleaning
                  'LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/v3_1/mr_filter'
