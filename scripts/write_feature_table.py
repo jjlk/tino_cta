@@ -20,7 +20,7 @@ from ctapipe.io.hessio import hessio_event_source
 
 from ctapipe.image.hillas import HillasParameterizationError, \
     hillas_parameters_4 as hillas_parameters
-
+from ctapipe.coordinates.coordinate_transformations import alt_to_theta, az_to_phi
 from ctapipe.reco.HillasReconstructor import HillasReconstructor
 
 # tino_cta
@@ -130,7 +130,8 @@ if __name__ == "__main__":
         run_id = tb.Int16Col(dflt=1, pos=16)
         event_id = tb.Int16Col(dflt=1, pos=16)
         tel_id = tb.Int16Col(dflt=1, pos=16)
-
+        xi = tb.Float32Col(dflt=np.nan, pos=10)
+        
     feature_outfile = tb.open_file(args.outfile, mode="w")
     feature_table = {}
     feature_events = {}
@@ -157,6 +158,16 @@ if __name__ == "__main__":
              tot_signal, max_signals, pos_fit, dir_fit, h_max,
              err_est_pos, err_est_dir) in preper.prepare_event(source):
 
+            # the MC direction of origin of the simulated particle
+            shower = event.mc
+            shower_core = np.array([shower.core_x / u.m,
+                                    shower.core_y / u.m]) * u.m
+            shower_org = linalg.set_phi_theta(az_to_phi(shower.az),
+                                              alt_to_theta(shower.alt))
+                    
+            # and how the reconstructed direction compares to that
+            xi = linalg.angle(dir_fit, shower_org)
+            
             n_faint = 0
             for tel_id in hillas_dict.keys():
                 cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
@@ -172,7 +183,7 @@ if __name__ == "__main__":
 
                 if moments.size > pe_thersh:
                     n_faint += 1
-
+                    
                 feature_events[cam_id]["impact_dist"] = impact_dist / dist_unit
                 feature_events[cam_id]["sum_signal_evt"] = tot_signal
                 feature_events[cam_id]["max_signal_cam"] = max_signals[tel_id]
@@ -193,6 +204,7 @@ if __name__ == "__main__":
                 feature_events[cam_id]["run_id"] = event.r0.run_id
                 feature_events[cam_id]["event_id"] = event.r0.event_id
                 feature_events[cam_id]["tel_id"] = tel_id
+                feature_events[cam_id]["xi"] = xi / angle_unit
                 
                 feature_events[cam_id].append()
 
@@ -208,5 +220,5 @@ if __name__ == "__main__":
     for table in feature_table.values():
         table.flush()
 
-    Eventcutflow()
     Imagecutflow()
+    Eventcutflow()
