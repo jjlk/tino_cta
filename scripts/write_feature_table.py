@@ -4,9 +4,8 @@ from tino_cta.helper_functions import *
 from astropy import units as u
 
 from sys import exit, path
-from os.path import expandvars
 from glob import glob
-from itertools import chain
+from collections import namedtuple
 
 # PyTables
 import tables as tb
@@ -22,11 +21,11 @@ from ctapipe.image.hillas import HillasParameterizationError, \
     hillas_parameters_4 as hillas_parameters
 from ctapipe.coordinates.coordinate_transformations import alt_to_theta, az_to_phi
 from ctapipe.reco.HillasReconstructor import HillasReconstructor
+from ctapipe.reco.energy_regressor import *
 
 # tino_cta
 from tino_cta.ImageCleaning import ImageCleaner
 from tino_cta.prepare_event import EventPreparer
-
 
 if __name__ == "__main__":
 
@@ -44,8 +43,9 @@ if __name__ == "__main__":
     parser.add_argument('--wave_temp_dir', type=str, default='/dev/shm/',
                         help="directory where mr_filter to store the temporary fits"
                              " files")
-    parser.add_argument('--ascii_list', type=str, default=None, help='ASCII list containing the name of the files to be used')
-    
+    parser.add_argument('--ascii_list', type=str, default=None,
+                        help='ASCII list containing the name of the files to be used')
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--gamma', default=True, action='store_true',
                        help="do gammas (default)")
@@ -54,7 +54,12 @@ if __name__ == "__main__":
     group.add_argument('--electron', action='store_true',
                        help="do electrons instead of gammas")
 
+    parser.add_argument('--estimate_energy', type=bool, default=False)
+
     args = parser.parse_args()
+
+    # Determine whether if energy is computed or not
+    estimate_energy = args.estimate_energy
 
     if args.infile_list:
         filenamelist = []
@@ -89,7 +94,8 @@ if __name__ == "__main__":
     cleaner = ImageCleaner(mode=args.mode, cutflow=Imagecutflow,
                            wavelet_options=args.raw,
                            tmp_files_directory=args.wave_temp_dir,
-                           skip_edge_events=True, island_cleaning=True)
+                           skip_edge_events=True,
+                           island_cleaning=True)
 
     # the class that does the shower reconstruction
     shower_reco = HillasReconstructor()
@@ -98,7 +104,8 @@ if __name__ == "__main__":
         cleaner=cleaner,
         hillas_parameters=hillas_parameters,
         shower_reco=shower_reco,
-        event_cutflow=Eventcutflow, image_cutflow=Imagecutflow,
+        event_cutflow=Eventcutflow,
+        image_cutflow=Imagecutflow,
         # event/image cuts:
         allowed_cam_ids=[],
         min_ntel=2,
@@ -107,6 +114,27 @@ if __name__ == "__main__":
     # catch ctr-c signal to exit current loop and still display results
     signal_handler = SignalHandler()
     signal.signal(signal.SIGINT, signal_handler)
+
+    # wrapper for the scikit-learn regressor
+    if estimate_energy == True:
+        args_regressor = "./classifier_to_pickle/regressor_{mode}_{cam_id}_{regressor}.pkl"
+        regressor = EnergyRegressor.load(
+            args_regressor.format(**{
+            "mode": args.mode,
+            "wave_args": "mixed",
+            "regressor": "RandomForestRegressor",
+            "cam_id": "{cam_id}"}),
+            cam_id_list=args.cam_ids)
+
+        EnergyFeatures = namedtuple(
+            "EnergyFeatures", (
+            "impact_dist",
+            "sum_signal_evt",
+            "width",
+            "length",
+            "h_max",
+            "local_distance")
+        )
 
     class EventFeatures(tb.IsDescription):
         impact_dist = tb.Float32Col(dflt=1, pos=0)
@@ -126,25 +154,29 @@ if __name__ == "__main__":
         MC_Energy = tb.FloatCol(dflt=1, pos=14)
         local_distance = tb.Float32Col(dflt=1, pos=15)
         n_pixel = tb.Int16Col(dflt=1, pos=16)
-        n_cluster = tb.Int16Col(dflt=1, pos=16)
-        run_id = tb.Int16Col(dflt=1, pos=16)
-        event_id = tb.Int16Col(dflt=1, pos=16)
-        tel_id = tb.Int16Col(dflt=1, pos=16)
-        xi = tb.Float32Col(dflt=np.nan, pos=10)
-        
-    feature_outfile = tb.open_file(args.outfile, mode="w")
+        n_cluster = tb.Int16Col(dflt=-1, pos=17)
+        run_id = tb.Int16Col(dflt=1, pos=18)
+        event_id = tb.Int16Col(dflt=1, pos=19)
+        tel_id = tb.Int16Col(dflt=1, pos=20)
+        xi = tb.Float32Col(dflt=np.nan, pos=21)
+        reco_energy = tb.FloatCol(dflt=np.nan, pos=22)
+
+
+    feature_outfile  = tb.open_file(args.outfile, mode="w")
     feature_table = {}
     feature_events = {}
 
-    pe_thersh = 100
-    n_faint_img = []
-    n_total_img = []
     mc_energy = []
+    reco_energy = []
 
     # Full-array south
     #allowed_tels = set(prod3b_tel_ids("L+N+D"))
     # Subarray LSTs, south
-    allowed_tels = set(prod3b_tel_ids('subarray_LSTs'))
+    # allowed_tels = set(prod3b_tel_ids('subarray_LSTs', site='south'))
+
+    # Subarray LSTs, North
+    allowed_tels = set(prod3b_tel_ids('subarray_LSTs', site='north'))
+
     #for i, filename in enumerate(filenamelist[:50][:args.last]):
     for i, filename in enumerate(filenamelist[:args.last]):
         print("file: {} filename = {}".format(i, filename))
@@ -169,6 +201,38 @@ if __name__ == "__main__":
             xi = linalg.angle(dir_fit, shower_org)
             
             n_faint = 0
+
+
+            # Not optimal at all, two loop on tel!!!
+            # For energy estimation
+            if estimate_energy:
+                reg_features_evt = {}
+                for tel_id in hillas_dict.keys():
+                    cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
+                    moments = hillas_dict[tel_id]
+                    tel_pos = np.array(event.inst.tel_pos[tel_id][:2]) * u.m
+                    impact_dist = linalg.length(tel_pos - pos_fit)
+
+                    reg_features_tel = EnergyFeatures(
+                        impact_dist=impact_dist / u.m,
+                        sum_signal_evt=tot_signal,
+                        width=moments.width / u.m,
+                        length=moments.length / u.m,
+                        h_max=h_max / u.m,
+                        local_distance=moments.r / moments.r.unit
+                    )
+
+                    try:
+                        reg_features_evt[cam_id] += [reg_features_tel]
+                    except KeyError:
+                        reg_features_evt[cam_id] = [reg_features_tel]
+
+                if reg_features_evt:
+                    predict_energy = regressor.predict_by_event([reg_features_evt])["mean"][0]
+                    reco_energy = predict_energy.to(energy_unit).value
+                else:
+                    reco_energy = np.isnan
+
             for tel_id in hillas_dict.keys():
                 cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
                 
@@ -178,11 +242,6 @@ if __name__ == "__main__":
                     feature_events[cam_id] = feature_table[cam_id].row
 
                 moments = hillas_dict[tel_id]
-                tel_pos = np.array(event.inst.tel_pos[tel_id][:2]) * u.m
-                impact_dist = linalg.length(tel_pos - pos_fit)
-
-                if moments.size > pe_thersh:
-                    n_faint += 1
                     
                 feature_events[cam_id]["impact_dist"] = impact_dist / dist_unit
                 feature_events[cam_id]["sum_signal_evt"] = tot_signal
@@ -205,12 +264,9 @@ if __name__ == "__main__":
                 feature_events[cam_id]["event_id"] = event.r0.event_id
                 feature_events[cam_id]["tel_id"] = tel_id
                 feature_events[cam_id]["xi"] = xi / angle_unit
-                
+                feature_events[cam_id]["reco_energy"] = reco_energy
                 feature_events[cam_id].append()
 
-            n_faint_img.append(n_faint)
-            n_total_img.append(len(hillas_dict))
-            mc_energy.append(event.mc.energy / energy_unit)
 
             if signal_handler.stop:
                 break
