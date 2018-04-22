@@ -319,7 +319,7 @@ def prod3b_tel_ids(cam_id, site="south"):
 
         else:
             raise ValueError("cam_id {} not supported".format(cam_id))
-    elif site.lower in ["north", "la palma", "lapalma", "spain", "canaries"]:
+    elif site.lower() in ["north", "la palma", "lapalma", "spain", "canaries"]:
         if cam_id in 'subarray_LSTs':
             tel_ids = np.array([1, 2, 3, 4])
         else:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import List, Any
 
 from tino_cta.helper_functions import *
 from astropy import units as u
@@ -54,13 +55,13 @@ if __name__ == "__main__":
     group.add_argument('--electron', action='store_true',
                        help="do electrons instead of gammas")
 
-    parser.add_argument('--estimate_energy', type=bool, default=False)
+    parser.add_argument('--estimate_energy', default=False, help='energy estimation')
 
     args = parser.parse_args()
 
     # Determine whether if energy is computed or not
     estimate_energy = args.estimate_energy
-
+    print(args.estimate_energy)
     if args.infile_list:
         filenamelist = []
         for f in args.infile_list:
@@ -166,8 +167,8 @@ if __name__ == "__main__":
     feature_table = {}
     feature_events = {}
 
-    mc_energy = []
-    reco_energy = []
+    # mc_energy = []  # type: List[Any]
+    # reco_energy = []
 
     # Full-array south
     #allowed_tels = set(prod3b_tel_ids("L+N+D"))
@@ -202,10 +203,10 @@ if __name__ == "__main__":
             
             n_faint = 0
 
-
+            reco_energy = np.nan
             # Not optimal at all, two loop on tel!!!
             # For energy estimation
-            if estimate_energy:
+            if estimate_energy == True:
                 reg_features_evt = {}
                 for tel_id in hillas_dict.keys():
                     cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
@@ -231,7 +232,7 @@ if __name__ == "__main__":
                     predict_energy = regressor.predict_by_event([reg_features_evt])["mean"][0]
                     reco_energy = predict_energy.to(energy_unit).value
                 else:
-                    reco_energy = np.isnan
+                    reco_energy = np.nan
 
             for tel_id in hillas_dict.keys():
                 cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
@@ -242,7 +243,9 @@ if __name__ == "__main__":
                     feature_events[cam_id] = feature_table[cam_id].row
 
                 moments = hillas_dict[tel_id]
-                    
+                tel_pos = np.array(event.inst.tel_pos[tel_id][:2]) * u.m
+                impact_dist = linalg.length(tel_pos - pos_fit)
+
                 feature_events[cam_id]["impact_dist"] = impact_dist / dist_unit
                 feature_events[cam_id]["sum_signal_evt"] = tot_signal
                 feature_events[cam_id]["max_signal_cam"] = max_signals[tel_id]
