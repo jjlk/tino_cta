@@ -2,7 +2,7 @@
 from typing import List, Any
 
 from tino_cta.helper_functions import *
-from astropy import units as u
+import astropy.units as u
 
 from sys import exit, path
 from glob import glob
@@ -15,7 +15,6 @@ import tables as tb
 from ctapipe.utils import linalg
 from ctapipe.utils.CutFlow import CutFlow
 
-from ctapipe.instrument import CameraGeometry
 from ctapipe.io.hessio import hessio_event_source
 
 from ctapipe.image.hillas import HillasParameterizationError, \
@@ -55,13 +54,14 @@ if __name__ == "__main__":
     group.add_argument('--electron', action='store_true',
                        help="do electrons instead of gammas")
 
-    parser.add_argument('--estimate_energy', default=False, help='energy estimation')
+    parser.add_argument('--estimate_energy', default=False, type=bool, help='energy estimation')
+    parser.add_argument('--regressor_dir', default='./', help='regressors directory')
 
     args = parser.parse_args()
 
     # Determine whether if energy is computed or not
     estimate_energy = args.estimate_energy
-    print(args.estimate_energy)
+
     if args.infile_list:
         filenamelist = []
         for f in args.infile_list:
@@ -118,9 +118,9 @@ if __name__ == "__main__":
 
     # wrapper for the scikit-learn regressor
     if estimate_energy == True:
-        args_regressor = "./classifier_to_pickle/regressor_{mode}_{cam_id}_{regressor}.pkl"
+        regressor_files = args.regressor_dir + "/regressor_{mode}_{cam_id}_{regressor}.pkl"
         regressor = EnergyRegressor.load(
-            args_regressor.format(**{
+            regressor_files.format(**{
             "mode": args.mode,
             "wave_args": "mixed",
             "regressor": "RandomForestRegressor",
@@ -207,6 +207,7 @@ if __name__ == "__main__":
             # Not optimal at all, two loop on tel!!!
             # For energy estimation
             if estimate_energy == True:
+                print('#####okokoko#####')
                 reg_features_evt = {}
                 for tel_id in hillas_dict.keys():
                     cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
@@ -233,6 +234,8 @@ if __name__ == "__main__":
                     reco_energy = predict_energy.to(energy_unit).value
                 else:
                     reco_energy = np.nan
+
+                print(reco_energy)
 
             for tel_id in hillas_dict.keys():
                 cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
