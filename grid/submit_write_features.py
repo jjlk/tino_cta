@@ -75,7 +75,6 @@ if "estimate_energy" in sys.argv:
 else:
     estimate_energy = False
 
-
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
 execute = 'write_feature_table.py'
@@ -83,7 +82,7 @@ pilot_args_write = ' '.join([
     source_ctapipe, '&&',
     './' + execute,
     #'--classifier ./{classifier}',
-    '--estimate_energy='.format(estimate_energy),
+    '--estimate_energy={}'.format(estimate_energy),
     '--regressor_dir=./',
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
@@ -160,15 +159,15 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
                  'LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/v3_1/mr_filter'
                  ]
 
-#model_path_template = \
-    "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+#model_path_template = "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+model_path_template = "LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
 for cam_id in cam_id_list:
     for mode in modes:
         for model in [("regressor", "RandomForestRegressor")]:
             input_sandbox.append(
                 model_path_template.format(
                     #"prod3b/paranal_edge",
-                    "prod3b/paranal_edge",
+                    "prod3b/",
                     model[0],
                     mode,
                     cam_id,

@@ -207,7 +207,6 @@ if __name__ == "__main__":
             # Not optimal at all, two loop on tel!!!
             # For energy estimation
             if estimate_energy == True:
-                print('#####okokoko#####')
                 reg_features_evt = {}
                 for tel_id in hillas_dict.keys():
                     cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
@@ -234,8 +233,6 @@ if __name__ == "__main__":
                     reco_energy = predict_energy.to(energy_unit).value
                 else:
                     reco_energy = np.nan
-
-                print(reco_energy)
 
             for tel_id in hillas_dict.keys():
                 cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
