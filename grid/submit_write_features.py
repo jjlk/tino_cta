@@ -70,6 +70,12 @@ modes = ['tail']
 particles = ['gamma']
 #particles = ['proton']
 
+if "estimate_energy" in sys.argv:
+    estimate_energy = True
+else:
+    estimate_energy = False
+
+
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
 execute = 'write_feature_table.py'
@@ -77,11 +83,12 @@ pilot_args_write = ' '.join([
     source_ctapipe, '&&',
     './' + execute,
     #'--classifier ./{classifier}',
-    '--estimate_energy=False',
+    '--estimate_energy='.format(estimate_energy),
+    '--regressor_dir=./',
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-    #'--max_events=50',  # JLK HACK
+    '--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
@@ -92,7 +99,6 @@ pilot_args_append = ' '.join([
     '--table_name', 'feature_events_LSTCam',
     '--outfile', '{out_name}'])
 
-expandvars
 # files containing lists of the Prod3b files on the GRID
 # prod3b_filelist_gamma = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
 #                              "Paranal_gamma_North_20deg_HB9_merged.list"))
@@ -122,7 +128,9 @@ for part_id in particles:
 window_sizes = [1] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
-start_runs = [50, 50, 0]
+#start_runs = [50, 50, 0]
+# JLK, use dedicated list
+start_runs = [0, 0, 0]
 
 # how many jobs to submit at once
 NJobs = 200  # put at < 0 to deactivate
@@ -152,22 +160,20 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
                  'LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/v3_1/mr_filter'
                  ]
 
-# JLK, no need for that
-# the pickled classifier and regressor on the GRID
-# model_path_template = \
-#     "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
-# for cam_id in cam_id_list:
-#     for mode in modes:
-#         for model in [("regressor", "RandomForestRegressor"),
-#                       ("classifier", "RandomForestClassifier")]:
-#             input_sandbox.append(
-#                 model_path_template.format(
-#                     "prod3b/paranal_edge",
-#                     model[0],
-#                     mode,
-#                     cam_id,
-#                     model[1])
-#             )
+#model_path_template = \
+    "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+for cam_id in cam_id_list:
+    for mode in modes:
+        for model in [("regressor", "RandomForestRegressor")]:
+            input_sandbox.append(
+                model_path_template.format(
+                    #"prod3b/paranal_edge",
+                    "prod3b/paranal_edge",
+                    model[0],
+                    mode,
+                    cam_id,
+                    model[1])
+            )
 
 #
 # ########  ##     ## ##    ## ##    ## #### ##    ##  ######
