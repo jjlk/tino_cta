@@ -87,10 +87,11 @@ pilot_args_write = ' '.join([
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-    '--max_events=50',  # JLK HACK
+#    '--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
+# JLK, To be de-hacked (LST specified)
 pilot_args_append = ' '.join([
     source_ctapipe, '&&',
     './append_tables.py',
@@ -113,7 +114,11 @@ prod3b_filelist = dict()
 # prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
 #                              "Paranal_electron_North_20deg_HB9_merged.list"))
 # light prod with no SSTs
-prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_gamma_South_20deg_DL0.list"))
+if estimate_energy == False:
+    prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_regressor.list"))
+elif:
+    prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_classifier.list"))
+
 prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_proton_South_20deg_DL0.list"))
 prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_electron_South_20deg_DL0.list"))
 
@@ -124,7 +129,7 @@ for part_id in particles:
 # Number of files per job
 #window_sizes = [25] * 3
 #window_sizes = [20] * 3
-window_sizes = [1] * 3
+window_sizes = [5] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
 #start_runs = [50, 50, 0]
@@ -138,8 +143,13 @@ NJobs = 200  # put at < 0 to deactivate
 # the placeholder braces are going to get set during the file-loop
 #output_filename_template = 'classified_events_{}.h5'
 output_filename_template = 'features_events_{}.h5'
-#output_path = "cta/prod3b/paranal_LND_edge/"
-output_path = "cta/prod3b/paranal_LSTs/"
+if estimate_energy == True:
+    output_filename_template = 'features_with_energy_events{}.h5'
+
+
+output_path = "cta/prod3b/paranal_LSTs/energy/"
+if estimate_energy == True:
+    output_path = "cta/prod3b/paranal_LSTs/classification/"
 
 # sets all the local files that are going to be uploaded with the job plus the pickled
 # classifier (if the file name starts with `LFN:`, it will be copied from the GRID itself)
@@ -159,22 +169,22 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
                  'LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/v3_1/mr_filter'
                  ]
 
-#model_path_template = "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
-model_path_template = "LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
-for cam_id in cam_id_list:
-    for mode in modes:
-        for model in [("regressor", "RandomForestRegressor")]:
-            input_sandbox.append(
-                model_path_template.format(
+if estimate_energy == True:
+    #model_path_template = "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+    model_path_template = "LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+    for cam_id in cam_id_list:
+        for mode in modes:
+            for model in [("regressor", "RandomForestRegressor")]:
+                input_sandbox.append(
+                    model_path_template.format(
                     #"prod3b/paranal_edge",
                     "prod3b/",
                     model[0],
                     mode,
                     cam_id,
                     model[1])
-            )
+                )
 
-#
 # ########  ##     ## ##    ## ##    ## #### ##    ##  ######
 # ##     ## ##     ## ###   ## ###   ##  ##  ###   ## ##    ##
 # ##     ## ##     ## ####  ## ####  ##  ##  ####  ## ##

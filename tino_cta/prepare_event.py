@@ -190,54 +190,6 @@ class EventPreparer():
                     try:
                         moments = self.hillas_parameters(new_geom, pmt_signal)
 
-                    # import matplotlib.pyplot as plt
-                    # from mpl_toolkits.mplot3d import Axes3D
-                    # from ctapipe.reco.HillasReconstructor import guess_pix_direction
-                    # # NOTE this is correct: +cos(psi) ; +sin(psi)
-                    # p2_x = moments.cen_x + moments.length * np.cos(moments.psi)
-                    # p2_y = moments.cen_y + moments.length * np.sin(moments.psi)
-                    # foclen = \
-                    #     event.inst.subarray.tel[tel_id].optics.effective_focal_length
-                    #
-                    # dir_c, dir_1, dir_2 = guess_pix_direction(
-                    #     np.array([0, moments.cen_x / u.m, p2_x / u.m]) * u.m,
-                    #     np.array([0, moments.cen_y / u.m, p2_y / u.m]) * u.m,
-                    #     az_to_phi(event.mc.tel[tel_id].azimuth_raw * u.rad),
-                    #     alt_to_theta(event.mc.tel[tel_id].altitude_raw*u.rad),
-                    #     foclen)
-                    #
-                    # pos = event.inst.subarray.positions[tel_id]
-                    # fig = plt.figure()
-                    # ax = fig.gca(projection='3d')
-                    # points_c = [pos + t * dir_c * u.m for t in np.linspace(0, 5000, 3)]
-                    # points_1 = [pos + t * dir_1 * u.m for t in np.linspace(0, 5000, 3)]
-                    # points_2 = [pos + t * dir_2 * u.m for t in np.linspace(0, 5000, 3)]
-                    # ax.plot(*np.array(points_c).T, color="g", label="tel_dir")
-                    # ax.plot(*np.array(points_1).T, color="r", label="centroid")
-                    # ax.plot(*np.array(points_2).T, color="b", label="offset")
-                    # # ax.set_aspect("equal")
-                    # plt.xlim([-1000, 1000])
-                    # plt.ylim([-1000, 1000])
-                    # ax.set_zlim([0, 2000])
-                    # # ax.invert_yaxis()
-                    # plt.xlabel("x")
-                    # plt.ylabel("y")
-                    # plt.legend()
-                    # plt.title(tel_id)
-
-                    # # camera display
-                    # from ctapipe.visualization import CameraDisplay
-                    # fig = plt.figure()
-                    # disp4 = CameraDisplay(new_geom, image=pmt_signal, ax=fig.gca())
-                    # hw = moments
-                    # plt.scatter([0], [0], color="white", marker="P")
-                    # plt.scatter([hw.cen_x/u.m], [hw.cen_y/u.m], color="r")
-                    # plt.scatter([(hw.cen_x+hw.length*np.cos(hw.psi))/u.m],
-                    #             [(hw.cen_y+hw.length*np.sin(hw.psi))/u.m], color="b")
-                    # plt.title(tel_id)
-
-                    # plt.show()
-
                     # if width and/or length are zero (e.g. when there is only only one
                     # pixel or when all  pixel are exactly in one row), the
                     # parametrisation won't be very useful: skip
