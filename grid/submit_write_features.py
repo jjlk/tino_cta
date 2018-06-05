@@ -71,8 +71,10 @@ particles = ['gamma']
 #particles = ['proton']
 
 if "estimate_energy" in sys.argv:
-    estimate_energy = True
+    print('Estimate energy for classifier!')
+    Estimate_energy = True
 else:
+    print('No energy estimation!')
     estimate_energy = False
 
 source_ctapipe = \
@@ -116,7 +118,7 @@ prod3b_filelist = dict()
 # light prod with no SSTs
 if estimate_energy == False:
     prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_regressor.list"))
-elif:
+else:
     prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_classifier.list"))
 
 prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_proton_South_20deg_DL0.list"))
@@ -129,7 +131,8 @@ for part_id in particles:
 # Number of files per job
 #window_sizes = [25] * 3
 #window_sizes = [20] * 3
-window_sizes = [5] * 3
+#window_sizes = [5] * 3
+window_sizes = [2] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
 #start_runs = [50, 50, 0]
