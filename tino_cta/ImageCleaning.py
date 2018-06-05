@@ -1,5 +1,5 @@
 import numpy as np
-
+import astropy.units as u
 from scipy import ndimage
 
 from ctapipe.utils.CutFlow import CutFlow
@@ -15,6 +15,9 @@ try:
     from pywicta.denoising import cdf
     from pywicta.denoising.inverse_transform_sampling import \
         EmpiricalDistribution as EmpDist
+    from pywicta.io import geometry_converter
+    from pywi.processing.filtering.pixel_clusters import filter_pixels_clusters
+    from pywi.processing.filtering import pixel_clusters
 except ImportError as e:
     print("Jeremie's 'pywicta' package could not be imported")
     print("wavelet cleaning will not work;"
@@ -34,40 +37,40 @@ class MissingImplementation(KeyError):
     pass
 
 
-def kill_isolpix(array, neighbours=None, threshold=.2):
-    """
-    Return array with isolated islands removed.
-    Only keeping the biggest islands (largest surface).
-
-    Parameters
-    ----------
-    array : 2D array
-        the input image you want to keep the "biggest" patch of
-    neighbours : 2D array, optional (default: None)
-        a mask defining what is considered a neighbour
-    threshold : float, optional (default: 0.2)
-        ignores pixel with entries below this value
-
-    Returns
-    -------
-    filtered_array : 2D array
-        image with just the largest island remaining
-    """
-
-    filtered_array = np.copy(array)
-
-    filtered_array[filtered_array < threshold] = 0
-    mask = filtered_array > 0
-
-    label_im, nb_labels = ndimage.label(mask, neighbours)
-
-    sums = ndimage.sum(filtered_array, label_im, range(nb_labels + 1))
-    mask_sum = sums < np.max(sums)
-    remove_pixel = mask_sum[label_im]
-
-    filtered_array[remove_pixel] = 0
-
-    return filtered_array
+# def kill_isolpix(array, neighbours=None, threshold=.2):
+#     """
+#     Return array with isolated islands removed.
+#     Only keeping the biggest islands (largest surface).
+#
+#     Parameters
+#     ----------
+#     array : 2D array
+#         the input image you want to keep the "biggest" patch of
+#     neighbours : 2D array, optional (default: None)
+#         a mask defining what is considered a neighbour
+#     threshold : float, optional (default: 0.2)
+#         ignores pixel with entries below this value
+#
+#     Returns
+#     -------
+#     filtered_array : 2D array
+#         image with just the largest island remaining
+#     """
+#
+#     filtered_array = np.copy(array)
+#
+#     filtered_array[filtered_array < threshold] = 0
+#     mask = filtered_array > 0
+#
+#     label_im, nb_labels = ndimage.label(mask, neighbours)
+#
+#     sums = ndimage.sum(filtered_array, label_im, range(nb_labels + 1))
+#     mask_sum = sums < np.max(sums)
+#     remove_pixel = mask_sum[label_im]
+#
+#     filtered_array[remove_pixel] = 0
+#
+#     return filtered_array
 
 
 def get_edge_pixels(camera, rows=1, n_neigh=None):
@@ -179,7 +182,11 @@ def reject_event_radius(img, geom, rel_radius=.8, which="inner"):
     except ZeroDivisionError:
         cen_x, cen_y = 0, 0
 
-    return cen_x**2 + cen_y**2 > r_edge_squared * rel_radius**2
+    # LST hack, to be consistent with Abelardo and Jeremie
+    r_cam_max = 1.0904 * u.m
+
+    #return cen_x**2 + cen_y**2 > r_edge_squared * rel_radius**2
+    return cen_x ** 2 + cen_y ** 2 > (r_cam_max * rel_radius) ** 2
 
 
 class ImageCleaner:
@@ -202,7 +209,8 @@ class ImageCleaner:
                      "hex": convert_geometry_rect2d_back_to_hexe1d}
 
     def __init__(self, mode="wave", dilate=False, island_cleaning=True,
-                 skip_edge_events=True, edge_width=1,
+                 skip_edge_events=True,
+                 edge_width=1,
                  cutflow=CutFlow("ImageCleaner"),
                  wavelet_options=None,
                  tmp_files_directory='/dev/shm/', mrfilter_directory=None):
@@ -226,7 +234,7 @@ class ImageCleaner:
                     kill_isolated_pixels=island_cleaning,
                     tmp_files_directory=tmp_files_directory,
                     mrfilter_directory=mrfilter_directory)
-            self.island_threshold = 1.5
+            # self.island_threshold = 1.5
 
             # command line parameters for the mr_filter call
             self.wavelet_options = \
@@ -235,8 +243,7 @@ class ImageCleaner:
                  "FlashCam": wavelet_options or "-K -C1 -m3 -s4,4,5,4 -n4",
                  "NectarCam": wavelet_options or
                     "-K -C1 -m3 -s13.013,2.549,6.559,1.412 -n4",
-                 "LSTCam": wavelet_options or
-                    "-K -C1 -m3 -s23.343,2.490,-2.856,-0.719 -n4",
+                 "LSTCam": wavelet_options or "-K -C1 -m3 -s23.343,2.490,-2.856,-0.719 -n4",
                  # WARNING: DUMMY VALUES
                  "CHEC": wavelet_options or "-K -C1 -m3 -s2,2,3,3 -n4"
                  }
@@ -255,22 +262,25 @@ class ImageCleaner:
             self.tail_thresholds = \
                 {"ASTRICam": (5, 7),  # (5, 10)?
                  "FlashCam": (12, 15),
-                 "LSTCam": (5, 10),  # ?? (3, 6) for Abelardo...
+                 #"LSTCam": (5, 10),  # ?? (3, 6) for Abelardo...
+                 "LSTCam": (3, 6),  # JLK, same as MARS analysis
                  # ASWG Zeuthen talk by Abelardo Moralejo:
-                 "NectarCam": (4, 8),
+                 "NectarCam": (3, 6),
                  # "FlashCam": (4, 8),  # there is some scaling missing?
                  "DigiCam": (3, 6),
                  "CHEC": (2, 4),
                  "SCTCam": (1.5, 3)}
 
-            self.island_threshold = 1.5
+            # self.island_threshold = 1.5
             self.dilate = dilate
         else:
             raise UnknownMode(
                 'cleaning mode "{}" not found'.format(mode))
 
         if island_cleaning:
-            self.island_cleaning = kill_isolpix
+            # Add JD method
+            #self.island_cleaning = kill_isolpix
+            self.island_cleaning = filter_pixels_clusters
         else:
             # just a pass-through that does nothing
             # (saves an if-statement in every `clean` call)
@@ -323,9 +333,10 @@ class ImageCleaner:
 
         self.cutflow.count("wavelet cleaning")
 
-        cleaned_img = self.island_cleaning(cleaned_img,
-                                           neighbours=self.hex_neighbours_1ring,
-                                           threshold=self.island_threshold)
+        # cleaned_img = self.island_cleaning(cleaned_img,
+        #                                    neighbours=self.hex_neighbours_1ring,
+        #                                    threshold=self.island_threshold)
+        cleaned_img = self.island_cleaning(cleaned_img)
 
         unrot_geom, unrot_img = convert_geometry_rect2d_back_to_hexe1d(
             rot_geom, cleaned_img, cam_geom.cam_id)
@@ -336,13 +347,16 @@ class ImageCleaner:
         mask = tailcuts_clean(
             cam_geom, img,
             picture_thresh=self.tail_thresholds[cam_geom.cam_id][1],
-            boundary_thresh=self.tail_thresholds[cam_geom.cam_id][0])
+            boundary_thresh=self.tail_thresholds[cam_geom.cam_id][0],
+            keep_isolated_pixels=False,
+            min_number_picture_neighbors=2)
         if self.dilate:
             dilate(cam_geom, mask)
         img[~mask] = 0
 
         self.cutflow.count("tailcut cleaning")
 
+        # Check for AstriCam and CHEC
         if "ASTRI" in cam_geom.cam_id:
             # turn into 2d to apply island cleaning
             img = astri_to_2d_array(img)
@@ -356,18 +370,31 @@ class ImageCleaner:
 
         else:
             # turn into 2d to apply island cleaning
-            rot_geom, rot_img = convert_geometry_hex1d_to_rect2d(
-                cam_geom, img, cam_geom.cam_id)
+            # rot_geom, rot_img = convert_geometry_hex1d_to_rect2d(
+            #     cam_geom, img, cam_geom.cam_id)
+
+            rot_img = geometry_converter.image_1d_to_2d(img, cam_geom.cam_id)
 
             # if set, remove all signal patches but the biggest one
-            cleaned_img = self.island_cleaning(rot_img, self.hex_neighbours_1ring)
+            # JLK we
+            #cleaned_img = self.island_cleaning(rot_img, self.hex_neighbours_1ring)
+            cleaned_img = self.island_cleaning(rot_img)
+
+            # n_cluster = pixel_clusters.number_of_pixels_clusters(
+            #     array=cleaned_img,
+            #     threshold=0
+            # )
+            # print('JLK, #pix={}'.format(n_cluster))
 
             # turn back into 1d array
-            unrot_geom, unrot_img = convert_geometry_rect2d_back_to_hexe1d(
-                rot_geom, cleaned_img, cam_geom.cam_id)
+            # unrot_geom, unrot_img = convert_geometry_rect2d_back_to_hexe1d(
+            #     rot_geom, cleaned_img, cam_geom.cam_id)
+
+            unrot_img = geometry_converter.image_2d_to_1d(cleaned_img, cam_geom.cam_id)
 
             new_img = unrot_img
-            new_geom = unrot_geom
+            #new_geom = unrot_geom
+            new_geom = cam_geom
 
         if self.cutflow.cut("edge event",
                             img=new_img, geom=new_geom):

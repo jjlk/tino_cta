@@ -27,6 +27,8 @@ from ctapipe.reco.energy_regressor import *
 from tino_cta.ImageCleaning import ImageCleaner
 from tino_cta.prepare_event import EventPreparer
 
+island_cleaning = False
+
 if __name__ == "__main__":
 
     # your favourite units here
@@ -54,13 +56,19 @@ if __name__ == "__main__":
     group.add_argument('--electron', action='store_true',
                        help="do electrons instead of gammas")
 
-    parser.add_argument('--estimate_energy', default=False, type=bool, help='energy estimation')
+    parser.add_argument('--estimate_energy', default=False, help='energy estimation')
     parser.add_argument('--regressor_dir', default='./', help='regressors directory')
+    parser.add_argument('--island_cleaning', default=False, help='island cleaning')
 
     args = parser.parse_args()
 
     # Determine whether if energy is computed or not
     estimate_energy = args.estimate_energy
+    print('Estimate energy: {}'.format(estimate_energy))
+
+    # Determine whether if energy is computed or not
+    island_cleaning = args.island_cleaning
+    print('Island cleaning: {}'.format(island_cleaning))
 
     if args.infile_list:
         filenamelist = []
@@ -92,11 +100,13 @@ if __name__ == "__main__":
     Imagecutflow = CutFlow("ImageCutFlow")
 
     # takes care of image cleaning
-    cleaner = ImageCleaner(mode=args.mode, cutflow=Imagecutflow,
+    cleaner = ImageCleaner(mode=args.mode,
+                           cutflow=Imagecutflow,
                            wavelet_options=args.raw,
                            tmp_files_directory=args.wave_temp_dir,
                            skip_edge_events=True,
-                           island_cleaning=True)
+                           #island_cleaning=True)
+                           island_cleaning=island_cleaning)
 
     # the class that does the shower reconstruction
     shower_reco = HillasReconstructor()
@@ -110,7 +120,8 @@ if __name__ == "__main__":
         # event/image cuts:
         allowed_cam_ids=[],
         min_ntel=2,
-        min_charge=args.min_charge, min_pixel=3)
+        min_charge=args.min_charge,
+        min_pixel=3)
 
     # catch ctr-c signal to exit current loop and still display results
     signal_handler = SignalHandler()
@@ -161,7 +172,7 @@ if __name__ == "__main__":
         tel_id = tb.Int16Col(dflt=1, pos=20)
         xi = tb.Float32Col(dflt=np.nan, pos=21)
         reco_energy = tb.FloatCol(dflt=np.nan, pos=22)
-
+        ellipticity= tb.FloatCol(dflt=1, pos=23)
 
     feature_outfile  = tb.open_file(args.outfile, mode="w")
     feature_table = {}
@@ -189,7 +200,7 @@ if __name__ == "__main__":
         # loop that cleans and parametrises the images and performs the reconstruction
         for (event, n_pixel_dict, hillas_dict, n_tels,
              tot_signal, max_signals, pos_fit, dir_fit, h_max,
-             err_est_pos, err_est_dir) in preper.prepare_event(source):
+             err_est_pos, err_est_dir, n_cluster_dict) in preper.prepare_event(source):
 
             # the MC direction of origin of the simulated particle
             shower = event.mc
@@ -245,6 +256,7 @@ if __name__ == "__main__":
                 moments = hillas_dict[tel_id]
                 tel_pos = np.array(event.inst.tel_pos[tel_id][:2]) * u.m
                 impact_dist = linalg.length(tel_pos - pos_fit)
+                ellipticity = moments.width / moments.length
 
                 feature_events[cam_id]["impact_dist"] = impact_dist / dist_unit
                 feature_events[cam_id]["sum_signal_evt"] = tot_signal
@@ -268,6 +280,8 @@ if __name__ == "__main__":
                 feature_events[cam_id]["tel_id"] = tel_id
                 feature_events[cam_id]["xi"] = xi / angle_unit
                 feature_events[cam_id]["reco_energy"] = reco_energy
+                feature_events[cam_id]["ellipticity"] = ellipticity.value
+                feature_events[cam_id]["n_cluster"] = n_cluster_dict[tel_id]
                 feature_events[cam_id].append()
 
 

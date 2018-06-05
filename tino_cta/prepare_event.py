@@ -1,25 +1,27 @@
 import numpy as np
 from astropy import units as u
-
 import warnings
 from traitlets.config import Config
-
 from collections import namedtuple, OrderedDict
 
-import ctapipe
+# CTAPIPE utilities
 from ctapipe.calib import CameraCalibrator
-
 from ctapipe.image import hillas
-
 from ctapipe.utils.linalg import rotation_matrix_2d
-
-from tino_cta.ImageCleaning import ImageCleaner, EdgeEvent
 from ctapipe.utils.CutFlow import CutFlow
 from ctapipe.coordinates.coordinate_transformations import (
     az_to_phi, alt_to_theta, transform_pixel_position)
 
+# Tino's utilities
+from tino_cta.ImageCleaning import ImageCleaner, EdgeEvent
+
+# PiWy utilities
+from pywicta.io import geometry_converter
+from pywicta.io.images import simtel_event_to_images
+from pywi.processing.filtering import pixel_clusters
 
 # monkey patch the camera calibrator to do NO integration correction
+import ctapipe
 def null_integration_correction_func(n_chan, pulse_shape, refstep, time_slice,
                                      window_width, window_shift):
     return np.ones(n_chan)
@@ -31,15 +33,14 @@ PreparedEvent = namedtuple("PreparedEvent",
                            ["event", "n_pixel_dict", "hillas_dict", "n_tels",
                             "tot_signal", "max_signals",
                             "pos_fit", "dir_fit", "h_max",
-                            "err_est_pos", "err_est_dir"
+                            "err_est_pos", "err_est_dir", "n_cluster_dict"
                             ])
-
 
 def stub(event):
     return PreparedEvent(event=event, n_pixel_dict=None, hillas_dict=None, n_tels=None,
                          tot_signal=None, max_signals=None,
                          pos_fit=None, dir_fit=None, h_max=None,
-                         err_est_pos=None, err_est_dir=None)
+                         err_est_pos=None, err_est_dir=None, n_cluster_dict=None)
 
 
 tel_phi = {}
@@ -65,10 +66,12 @@ class EventPreparer():
     def __init__(self, calib=None, cleaner=None, hillas_parameters=None,
                  shower_reco=None, event_cutflow=None, image_cutflow=None,
                  # event/image cuts:
-                 allowed_cam_ids=None, min_ntel=1, min_charge=0, min_pixel=2):
+                 allowed_cam_ids=None, min_ntel=2, min_charge=50, min_pixel=3):
 
         # configuration for the camera calibrator
         # modifies the integration window to be more like in MARS
+        # JLK, only for LST!!!!
+        # OPtion for integration correction is done above
         cfg = Config()
         cfg["ChargeExtractorFactory"]["extractor"] = 'LocalPeakIntegrator'
         cfg["ChargeExtractorFactory"]["window_width"] = 5
@@ -92,11 +95,13 @@ class EventPreparer():
             ("direction nan", lambda x: np.isnan(x.value).any())
         ]))
 
+        ### JLK note, nominal distance cut should be done here, not in image cleaning...
         self.image_cutflow.set_cuts(OrderedDict([
             ("noCuts", None),
             ("min pixel", lambda s: np.count_nonzero(s) < min_pixel),
             ("min charge", lambda x: x < min_charge),
-            ("poor moments", lambda m: m.width <= 0 or m.length <= 0)
+            ("poor moments", lambda m: m.width <= 0 or m.length <= 0),
+            ("bad ellipticity", lambda m: (m.width/m.length) < 0.1 or (m.width/m.length) > 0.6)
         ]))
 
     @classmethod
@@ -137,6 +142,7 @@ class EventPreparer():
             hillas_dict = {}
             n_tels = {"tot": len(event.dl0.tels_with_data),
                       "LST": 0, "MST": 0, "SST": 0}
+            n_cluster_dict = {}
             for tel_id in event.dl0.tels_with_data:
                 self.image_cutflow.count("noCuts")
                 
@@ -158,10 +164,12 @@ class EventPreparer():
                 # JLK, N telescopes are not really interesting for discrimination, too much fluctuations
                 # n_tels[tel_type] += 1
 
-                # the camera image as a 1D array
-                pmt_signal = event.dl1.tel[tel_id].image
-
-                pmt_signal = self.pick_gain_channel(pmt_signal, camera.cam_id)
+                # the camera image as a 1D array and stuff needed for calibration
+                #pmt_signal = event.dl1.tel[tel_id].image
+                #pmt_signal = self.pick_gain_channel(pmt_signal, camera.cam_id)
+                # Choose gain according to pywicta's procedure
+                image_1d = simtel_event_to_images(event=event, tel_id=tel_id, ctapipe_format=True)
+                pmt_signal = image_1d.input_image  # calibrated image
 
                 # clean the image
                 try:
@@ -179,7 +187,15 @@ class EventPreparer():
                     continue
                 except EdgeEvent:
                     continue
-                
+
+                # For cluster counts
+                image_2d = geometry_converter.image_1d_to_2d(pmt_signal, camera.cam_id)
+                n_cluster_dict[tel_id] = pixel_clusters.number_of_pixels_clusters(
+                    array=image_2d,
+                    threshold=0
+                )
+                # print('==> Prepare, #pix={}'.format(n_cluster_dict[tel_id]))
+
                 # could this go into `hillas_parameters` ...?
                 max_signals[tel_id] = np.max(pmt_signal)
 
@@ -196,6 +212,9 @@ class EventPreparer():
                         if self.image_cutflow.cut("poor moments", moments):
                             continue
 
+                        if self.image_cutflow.cut("bad ellipticity", moments):
+                            continue
+
                     except (FloatingPointError, hillas.HillasParameterizationError):
                         continue
 
@@ -203,7 +222,9 @@ class EventPreparer():
                 hillas_dict[tel_id] = moments
                 n_pixel_dict[tel_id] = len(np.where(pmt_signal>0)[0])
                 tot_signal += moments.size
-                
+                image_2d = geometry_converter.image_1d_to_2d(pmt_signal, camera.cam_id)
+
+
             n_tels["reco"] = len(hillas_dict)
             if self.event_cutflow.cut("min2Tels reco", n_tels["reco"]):
                 if return_stub:
@@ -239,6 +260,6 @@ class EventPreparer():
             yield PreparedEvent(event=event, n_pixel_dict=n_pixel_dict, hillas_dict=hillas_dict,
                                 n_tels=n_tels, tot_signal=tot_signal, max_signals=max_signals,
                                 pos_fit=pos_fit, dir_fit=dir_fit, h_max=h_max,
-                                err_est_pos=err_est_pos, err_est_dir=err_est_dir
+                                err_est_pos=err_est_pos, err_est_dir=err_est_dir, n_cluster_dict=n_cluster_dict
                                 )
 
