@@ -19,6 +19,7 @@ from tino_cta.ImageCleaning import ImageCleaner, EdgeEvent
 from pywicta.io import geometry_converter
 from pywicta.io.images import simtel_event_to_images
 from pywi.processing.filtering import pixel_clusters
+from pywi.processing.filtering.pixel_clusters import filter_pixels_clusters
 
 # monkey patch the camera calibrator to do NO integration correction
 import ctapipe
@@ -78,7 +79,9 @@ class EventPreparer():
         cfg["ChargeExtractorFactory"]["window_shift"] = 2
 
         self.calib = calib or CameraCalibrator(config=cfg, tool=None)
-        self.cleaner = cleaner or ImageCleaner(mode=None)
+        # JLK: add dictionnary for multiple cleaning
+        # self.cleaner = cleaner or ImageCleaner(mode=None)
+        self.cleaner = cleaner or {'biggest_cluster': ImageCleaner(mode=None)}
         self.hillas_parameters = hillas_parameters or hillas.hillas_parameters
         self.shower_reco = shower_reco or \
             raise_error("need to provide a shower reconstructor....")
@@ -95,13 +98,15 @@ class EventPreparer():
             ("direction nan", lambda x: np.isnan(x.value).any())
         ]))
 
-        ### JLK note, nominal distance cut should be done here, not in image cleaning...
+        # JLK note, nominal distance cut should be done here, not in image cleaning...
+        # Fixed, camera radius in deg comes from Abelardo (2.31)
         self.image_cutflow.set_cuts(OrderedDict([
             ("noCuts", None),
             ("min pixel", lambda s: np.count_nonzero(s) < min_pixel),
             ("min charge", lambda x: x < min_charge),
             ("poor moments", lambda m: m.width <= 0 or m.length <= 0),
-            ("bad ellipticity", lambda m: (m.width/m.length) < 0.1 or (m.width/m.length) > 0.6)
+            ("bad ellipticity", lambda m: (m.width/m.length) < 0.1 or (m.width/m.length) > 0.6),
+            ("close to the edge", lambda m: m.r.value > (0.8 * 1.12949101073069946))  # in meter
         ]))
 
     @classmethod
@@ -139,7 +144,8 @@ class EventPreparer():
             tot_signal = 0
             max_signals = {}
             n_pixel_dict = {}
-            hillas_dict = {}
+            hillas_dict_reco = {}  # for geometry
+            hillas_dict = {}  # for discrimination
             n_tels = {"tot": len(event.dl0.tels_with_data),
                       "LST": 0, "MST": 0, "SST": 0}
             n_cluster_dict = {}
@@ -178,14 +184,30 @@ class EventPreparer():
                         pmt_signal, new_geom = \
                             self.cleaner.clean(pmt_signal.copy(), camera)
 
-                    if self.image_cutflow.cut("min pixel", pmt_signal) or \
-                       self.image_cutflow.cut("min charge", np.sum(pmt_signal)):
-                        continue
+                    # Done for the biggest island
+                    # if self.image_cutflow.cut("min pixel", pmt_signal) or \
+                    #    self.image_cutflow.cut("min charge", np.sum(pmt_signal)):
+                    #     continue
 
                 except FileNotFoundError as e:
                     print(e)
                     continue
                 except EdgeEvent:
+                    continue
+
+                # Image to be used for reconstruction, biggest cluster
+                pmt_signal_reco = pmt_signal.copy()
+                pmt_signal_reco = geometry_converter.image_1d_to_2d(pmt_signal_reco,
+                                                                    camera.cam_id)  ## Should be change for ASTRI
+                pmt_signal_reco = filter_pixels_clusters(pmt_signal_reco)
+                pmt_signal_reco = geometry_converter.image_2d_to_1d(pmt_signal_reco,
+                                                                    camera.cam_id)  ## Should be change for ASTRI
+
+                # Apply some selection
+                if self.image_cutflow.cut("min pixel", pmt_signal_reco):
+                    continue
+
+                if self.image_cutflow.cut("min charge", np.sum(pmt_signal_reco)):
                     continue
 
                 # For cluster counts
@@ -194,7 +216,6 @@ class EventPreparer():
                     array=image_2d,
                     threshold=0
                 )
-                # print('==> Prepare, #pix={}'.format(n_cluster_dict[tel_id]))
 
                 # could this go into `hillas_parameters` ...?
                 max_signals[tel_id] = np.max(pmt_signal)
@@ -202,17 +223,22 @@ class EventPreparer():
                 # do the hillas reconstruction of the images
                 # QUESTION should this change in numpy behaviour be done here
                 # or within `hillas_parameters` itself?
+                # JLK: make selection on biggest cluster
                 with np.errstate(invalid='raise', divide='raise'):
                     try:
-                        moments = self.hillas_parameters(new_geom, pmt_signal)
+                        moments_reco = self.hillas_parameters(new_geom, pmt_signal_reco)  # for geometry
+                        moments = self.hillas_parameters(new_geom, pmt_signal)  # for discrimination
 
                     # if width and/or length are zero (e.g. when there is only only one
                     # pixel or when all  pixel are exactly in one row), the
                     # parametrisation won't be very useful: skip
-                        if self.image_cutflow.cut("poor moments", moments):
+                        if self.image_cutflow.cut("poor moments", moments_reco):
                             continue
 
-                        if self.image_cutflow.cut("bad ellipticity", moments):
+                        if self.image_cutflow.cut("close to the edge", moments_reco):
+                            continue
+
+                        if self.image_cutflow.cut("bad ellipticity", moments_reco):
                             continue
 
                     except (FloatingPointError, hillas.HillasParameterizationError):
@@ -220,12 +246,14 @@ class EventPreparer():
 
                 n_tels[tel_type] += 1
                 hillas_dict[tel_id] = moments
+                hillas_dict_reco[tel_id] = moments_reco
                 n_pixel_dict[tel_id] = len(np.where(pmt_signal>0)[0])
                 tot_signal += moments.size
                 image_2d = geometry_converter.image_1d_to_2d(pmt_signal, camera.cam_id)
 
 
-            n_tels["reco"] = len(hillas_dict)
+            n_tels["reco"] = len(hillas_dict_reco)
+            n_tels["discri"] = len(hillas_dict)
             if self.event_cutflow.cut("min2Tels reco", n_tels["reco"]):
                 if return_stub:
                     yield stub(event)
@@ -236,12 +264,16 @@ class EventPreparer():
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     # telescope loop done, now do the core fit
+                    # JLK, reco with biggest clusters
                     self.shower_reco.get_great_circles(
-                        hillas_dict, event.inst.subarray, tel_phi, tel_theta)
+                        #hillas_dict, event.inst.subarray, tel_phi, tel_theta)
+                        hillas_dict_reco, event.inst.subarray, tel_phi, tel_theta)
                     pos_fit, err_est_pos = self.shower_reco.fit_core_crosses()
                     dir_fit, err_est_dir = self.shower_reco.fit_origin_crosses()
+                    # JLK, reco with biggest clusters
                     h_max = self.shower_reco.fit_h_max(
-                        hillas_dict, event.inst.subarray, tel_phi, tel_theta
+                        # hillas_dict, event.inst.subarray, tel_phi, tel_theta
+                        hillas_dict_reco, event.inst.subarray, tel_phi, tel_theta
                     )
             except Exception as e:
                 print("exception in reconstruction:", e)

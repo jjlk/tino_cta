@@ -27,8 +27,6 @@ from ctapipe.reco.energy_regressor import *
 from tino_cta.ImageCleaning import ImageCleaner
 from tino_cta.prepare_event import EventPreparer
 
-island_cleaning = False
-
 if __name__ == "__main__":
 
     # your favourite units here
@@ -58,17 +56,12 @@ if __name__ == "__main__":
 
     parser.add_argument('--estimate_energy', default=False, help='energy estimation')
     parser.add_argument('--regressor_dir', default='./', help='regressors directory')
-    parser.add_argument('--island_cleaning', default=False, help='island cleaning')
 
     args = parser.parse_args()
 
     # Determine whether if energy is computed or not
     estimate_energy = args.estimate_energy
     print('Estimate energy: {}'.format(estimate_energy))
-
-    # Determine whether if energy is computed or not
-    island_cleaning = args.island_cleaning
-    print('Island cleaning: {}'.format(island_cleaning))
 
     if args.infile_list:
         filenamelist = []
@@ -99,14 +92,15 @@ if __name__ == "__main__":
     Eventcutflow = CutFlow("EventCutFlow")
     Imagecutflow = CutFlow("ImageCutFlow")
 
-    # takes care of image cleaning
+    cleaners =dict()
+
+    # takes care of image cleaning (on island cleaning)
     cleaner = ImageCleaner(mode=args.mode,
                            cutflow=Imagecutflow,
                            wavelet_options=args.raw,
                            tmp_files_directory=args.wave_temp_dir,
-                           skip_edge_events=True,
-                           #island_cleaning=True)
-                           island_cleaning=island_cleaning)
+                           skip_edge_events=False,
+                           island_cleaning=False)
 
     # the class that does the shower reconstruction
     shower_reco = HillasReconstructor()
@@ -173,6 +167,8 @@ if __name__ == "__main__":
         xi = tb.Float32Col(dflt=np.nan, pos=21)
         reco_energy = tb.FloatCol(dflt=np.nan, pos=22)
         ellipticity= tb.FloatCol(dflt=1, pos=23)
+        n_tel_reco= tb.FloatCol(dflt=1, pos=24)
+        n_tel_discri = tb.FloatCol(dflt=1, pos=25)
 
     feature_outfile  = tb.open_file(args.outfile, mode="w")
     feature_table = {}
@@ -282,6 +278,8 @@ if __name__ == "__main__":
                 feature_events[cam_id]["reco_energy"] = reco_energy
                 feature_events[cam_id]["ellipticity"] = ellipticity.value
                 feature_events[cam_id]["n_cluster"] = n_cluster_dict[tel_id]
+                feature_events[cam_id]["n_tel_reco"] = n_tels['reco']
+                feature_events[cam_id]["n_tel_discri"] = n_tels['discri']
                 feature_events[cam_id].append()
 
 

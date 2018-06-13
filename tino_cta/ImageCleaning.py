@@ -209,7 +209,7 @@ class ImageCleaner:
                      "hex": convert_geometry_rect2d_back_to_hexe1d}
 
     def __init__(self, mode="wave", dilate=False, island_cleaning=True,
-                 skip_edge_events=True,
+                 skip_edge_events=False,  # JLK, now done in prepare event as a std cut
                  edge_width=1,
                  cutflow=CutFlow("ImageCleaner"),
                  wavelet_options=None,
@@ -396,9 +396,10 @@ class ImageCleaner:
             #new_geom = unrot_geom
             new_geom = cam_geom
 
-        if self.cutflow.cut("edge event",
-                            img=new_img, geom=new_geom):
-            raise EdgeEvent
+        # JLK, do not need that anymore, done in prepare_event
+        # if self.cutflow.cut("edge event",
+        #                     img=new_img, geom=new_geom):
+        #     raise EdgeEvent
 
         return new_img, new_geom
 
