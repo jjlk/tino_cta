@@ -101,23 +101,9 @@ pilot_args_append = ' '.join([
     '--table_name', 'feature_events_LSTCam',
     '--outfile', '{out_name}'])
 
-# files containing lists of the Prod3b files on the GRID
-# prod3b_filelist_gamma = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-#                              "Paranal_gamma_North_20deg_HB9_merged.list"))
-# prod3b_filelist_proton = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-#                               "Paranal_proton_North_20deg_HB9_merged.list"))
-# prod3b_filelist_electron = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-#                                 "Paranal_electron_North_20deg_HB9_merged.list"))
 prod3b_filelist = dict()
-# prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-#                              "Paranal_gamma_North_20deg_HB9_merged.list"))
-# prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-#                              "Paranal_proton_North_20deg_HB9_merged.list"))
-# prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b/Paranal/"
-#                              "Paranal_electron_North_20deg_HB9_merged.list"))
-# light prod with no SSTs
 if estimate_energy == False:
-    prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_regressor.list"))
+    prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_energy.list"))
 else:
     prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_classifier.list"))
 
@@ -132,7 +118,7 @@ for part_id in particles:
 #window_sizes = [25] * 3
 #window_sizes = [20] * 3
 #window_sizes = [5] * 3
-window_sizes = [2] * 3
+window_sizes = [4] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
 #start_runs = [50, 50, 0]
@@ -148,7 +134,6 @@ NJobs = 200  # put at < 0 to deactivate
 output_filename_template = 'features_events_{}.h5'
 if estimate_energy == True:
     output_filename_template = 'features_with_energy_events{}.h5'
-
 
 output_path = "cta/prod3b/paranal_LSTs/energy/"
 if estimate_energy == True:
@@ -306,8 +291,8 @@ for i, filelist in enumerate(file_list_to_run_on):
 
         # mr_filter loses its executable property by uploading it to the GRID SE; reset
         j.setExecutable('chmod', '+x mr_filter')
-
-        j.setExecutable('ls -lah')
+        j.setExecutable('ls -lah ./pywi/')
+        j.setExecutable('ls -lah ./pywicta/')
 
         for run_file in run_filelist:
             file_token = re.split('_', run_file)[3]
