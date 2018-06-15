@@ -169,6 +169,11 @@ if __name__ == "__main__":
         ellipticity= tb.FloatCol(dflt=1, pos=23)
         n_tel_reco= tb.FloatCol(dflt=1, pos=24)
         n_tel_discri = tb.FloatCol(dflt=1, pos=25)
+        mc_core_x = tb.FloatCol(dflt=1, pos=26)
+        mc_core_y = tb.FloatCol(dflt=1, pos=27)
+        reco_core_x = tb.FloatCol(dflt=1, pos=28)
+        reco_core_y = tb.FloatCol(dflt=1, pos=29)
+        mc_h_first_int = tb.FloatCol(dflt=1, pos=30)
 
     feature_outfile  = tb.open_file(args.outfile, mode="w")
     feature_table = {}
@@ -254,6 +259,9 @@ if __name__ == "__main__":
                 impact_dist = linalg.length(tel_pos - pos_fit)
                 ellipticity = moments.width / moments.length
 
+                #from IPython import embed
+                #embed()
+
                 feature_events[cam_id]["impact_dist"] = impact_dist / dist_unit
                 feature_events[cam_id]["sum_signal_evt"] = tot_signal
                 feature_events[cam_id]["max_signal_cam"] = max_signals[tel_id]
@@ -280,6 +288,11 @@ if __name__ == "__main__":
                 feature_events[cam_id]["n_cluster"] = n_cluster_dict[tel_id]
                 feature_events[cam_id]["n_tel_reco"] = n_tels['reco']
                 feature_events[cam_id]["n_tel_discri"] = n_tels['discri']
+                feature_events[cam_id]["mc_core_x"] = event.mc.core_x / dist_unit
+                feature_events[cam_id]["mc_core_y"] = event.mc.core_y / dist_unit
+                feature_events[cam_id]["reco_core_x"] = pos_fit[0] / dist_unit
+                feature_events[cam_id]["reco_core_y"] = pos_fit[1] / dist_unit
+                feature_events[cam_id]["mc_h_first_int"] = event.mc.h_first_int / dist_unit
                 feature_events[cam_id].append()
 
 
