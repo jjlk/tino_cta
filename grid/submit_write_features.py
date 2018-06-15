@@ -135,7 +135,8 @@ output_filename_template = 'features_events_{}.h5'
 if estimate_energy == True:
     output_filename_template = 'features_with_energy_events{}.h5'
 
-output_path = "cta/prod3b/paranal_LSTs/energy/"
+# JLK name of the output directory
+output_path = "cta/prod3b/paranal_LSTs/energy_test/"
 if estimate_energy == True:
     output_path = "cta/prod3b/paranal_LSTs/classification/"
 
