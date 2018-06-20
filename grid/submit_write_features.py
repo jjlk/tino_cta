@@ -136,9 +136,9 @@ if estimate_energy == True:
     output_filename_template = 'features_with_energy_events{}.h5'
 
 # JLK name of the output directory
-output_path = "cta/prod3b/paranal_LSTs/energy_test/"
+output_path = "cta/prod3b/lapalma_lsts/energy/"
 if estimate_energy == True:
-    output_path = "cta/prod3b/paranal_LSTs/classification/"
+    output_path = "cta/prod3b/lapalma_lsts/classification/"
 
 # sets all the local files that are going to be uploaded with the job plus the pickled
 # classifier (if the file name starts with `LFN:`, it will be copied from the GRID itself)
