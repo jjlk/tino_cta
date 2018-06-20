@@ -162,7 +162,7 @@ if __name__ == "__main__":
         n_pixel = tb.Int16Col(dflt=1, pos=16)
         n_cluster = tb.Int16Col(dflt=-1, pos=17)
         run_id = tb.Int16Col(dflt=1, pos=18)
-        event_id = tb.Int16Col(dflt=1, pos=19)
+        event_id = tb.Int32Col(dflt=1, pos=19)
         tel_id = tb.Int16Col(dflt=1, pos=20)
         xi = tb.Float32Col(dflt=np.nan, pos=21)
         reco_energy = tb.FloatCol(dflt=np.nan, pos=22)
