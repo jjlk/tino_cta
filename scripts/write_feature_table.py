@@ -113,7 +113,8 @@ if __name__ == "__main__":
         image_cutflow=Imagecutflow,
         # event/image cuts:
         allowed_cam_ids=[],
-        min_ntel=2,
+        #min_ntel=2,
+        min_ntel=3,
         min_charge=args.min_charge,
         min_pixel=3)
 

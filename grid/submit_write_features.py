@@ -89,7 +89,7 @@ pilot_args_write = ' '.join([
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-#    '--max_events=50',  # JLK HACK
+    #'--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
@@ -136,9 +136,13 @@ if estimate_energy == True:
     output_filename_template = 'features_with_energy_events{}.h5'
 
 # JLK name of the output directory
-output_path = "cta/prod3b/lapalma_lsts/energy/"
+#output_path = "cta/prod3b/lapalma_lsts_tc48/energy/"
+#output_path = "cta/prod3b/lapalma_lsts_tc48/energy/"
+#output_path = "cta/prod3b/lapalma_lsts_tc510/energy/"
+#output_path = "cta/prod3b/lapalma_lsts/energy_last_prod/"
+output_path = "cta/prod3b/lapalma_lsts_mult3/energy/"
 if estimate_energy == True:
-    output_path = "cta/prod3b/lapalma_lsts/classification/"
+    output_path = "cta/prod3b/lapalma_lsts_mult3/discrimination/"
 
 # sets all the local files that are going to be uploaded with the job plus the pickled
 # classifier (if the file name starts with `LFN:`, it will be copied from the GRID itself)
