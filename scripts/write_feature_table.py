@@ -61,6 +61,11 @@ if __name__ == "__main__":
 
     # Determine whether if energy is computed or not
     estimate_energy = args.estimate_energy
+    if estimate_energy in 'True':
+        estimate_energy = True
+    else:
+        estimate_energy = False
+
     print('Estimate energy: {}'.format(estimate_energy))
 
     if args.infile_list:
@@ -124,14 +129,20 @@ if __name__ == "__main__":
 
     # wrapper for the scikit-learn regressor
     if estimate_energy == True:
-        regressor_files = args.regressor_dir + "/regressor_{mode}_{cam_id}_{regressor}.pkl"
+        regressor_files = args.regressor_dir + "/regressor_{mode}_{cam_id}_{regressor}.pkl.gz"
         regressor = EnergyRegressor.load(
             regressor_files.format(**{
             "mode": args.mode,
             "wave_args": "mixed",
-            "regressor": "RandomForestRegressor",
+            "regressor": "AdaBoostRegressor",
             "cam_id": "{cam_id}"}),
             cam_id_list=args.cam_ids)
+
+        print(regressor_files.format(**{
+            "mode": args.mode,
+            "wave_args": "mixed",
+            "regressor": "AdaBoostRegressor",
+            "cam_id": "{cam_id}"}))
 
         EnergyFeatures = namedtuple(
             "EnergyFeatures", (
@@ -248,6 +259,7 @@ if __name__ == "__main__":
                         reg_features_evt[cam_id] += [reg_features_tel]
                     except KeyError:
                         reg_features_evt[cam_id] = [reg_features_tel]
+                        print('Failed energy...')
 
                 if reg_features_evt:
                     predict_energy = regressor.predict_by_event([reg_features_evt])["mean"][0]
