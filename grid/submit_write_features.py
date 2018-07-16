@@ -31,7 +31,6 @@ dirac = Dirac()
 # not submitting jobs where we already have the output
 while True:
     try:
-        #GRID_filelist = open('vo.cta.in2p3.fr-user-t-tmichael.lfns').read()
         GRID_filelist = open('vo.cta.in2p3.fr-user-j-jlefaucheur.lfns').read()
         break
     except IOError:
@@ -67,12 +66,12 @@ banned_sites = [
 cam_id_list = ["LSTCam"]
 modes = ['tail']
 #particles = ['gamma', 'proton', 'electron']
-particles = ['gamma']
+particles = ['gamma', 'proton']
 #particles = ['proton']
 
 if "estimate_energy" in sys.argv:
     print('Estimate energy for classifier!')
-    Estimate_energy = True
+    estimate_energy = True
 else:
     print('No energy estimation!')
     estimate_energy = False
@@ -89,7 +88,7 @@ pilot_args_write = ' '.join([
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-    #'--max_events=50',  # JLK HACK
+    '--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
@@ -105,10 +104,11 @@ prod3b_filelist = dict()
 if estimate_energy == False:
     prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_energy.list"))
 else:
-    prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_classifier.list"))
+    prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_classification.list"))
+    prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/proton_classification.list"))
 
-prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_proton_South_20deg_DL0.list"))
-prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_electron_South_20deg_DL0.list"))
+#prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_proton_South_20deg_DL0.list"))
+#prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/Prod3_LaPalma_Baseline_NSB1x_electron_South_20deg_DL0.list"))
 
 file_list_to_run_on = list()
 for part_id in particles:
@@ -133,7 +133,7 @@ NJobs = 200  # put at < 0 to deactivate
 #output_filename_template = 'classified_events_{}.h5'
 output_filename_template = 'features_events_{}.h5'
 if estimate_energy == True:
-    output_filename_template = 'features_with_energy_events{}.h5'
+    output_filename_template = 'features_ereco_events_{}.h5'
 
 # JLK name of the output directory
 #output_path = "cta/prod3b/lapalma_lsts_tc48/energy/"
@@ -164,19 +164,26 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
 
 if estimate_energy == True:
     #model_path_template = "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
-    model_path_template = "LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+    #model_path_template = "LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
+    model_path_template = 'LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/prod3b/lapalma_lsts_mult3/regressor/regressor_{}_{}_AdaBoostRegressor.pkl.gz'
     for cam_id in cam_id_list:
         for mode in modes:
-            for model in [("regressor", "RandomForestRegressor")]:
-                input_sandbox.append(
-                    model_path_template.format(
-                    #"prod3b/paranal_edge",
-                    "prod3b/",
-                    model[0],
-                    mode,
-                    cam_id,
-                    model[1])
-                )
+            model_to_upload = model_path_template.format(mode, cam_id)
+            print(model_to_upload)
+            input_sandbox.append(model_to_upload)
+    # for cam_id in cam_id_list:
+    #     for mode in modes:
+    #         #for model in [("regressor", "RandomForestRegressor")]:
+    #         for model in [("regressor", "AdaBoostRegressor")]:
+    #             input_sandbox.append(
+    #                 model_path_template.format(
+    #                 #"prod3b/paranal_edge",
+    #                 "prod3b/",
+    #                 model[0],
+    #                 mode,
+    #                 cam_id,
+    #                 model[1])
+    #             )
 
 # ########  ##     ## ##    ## ##    ## #### ##    ##  ######
 # ##     ## ##     ## ###   ## ###   ##  ##  ###   ## ##    ##
@@ -341,7 +348,10 @@ for i, filelist in enumerate(file_list_to_run_on):
         if window_sizes[i] > 1:
             names = []
             for mode in modes:
-                names.append(('features_events_' + mode, output_filenames[mode]))
+                if estimate_energy is True:
+                    names.append(('features_ereco_events_' + mode, output_filenames[mode]))
+                else:
+                    names.append(('features_events_' + mode, output_filenames[mode]))
             for in_name, out_name in names:
                 print('in_name: {}, out_name: {}'.format(in_name, out_name))
             #for in_name, out_name in [('classified_events_wave', output_filename_wave),

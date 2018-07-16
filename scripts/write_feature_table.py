@@ -135,13 +135,21 @@ if __name__ == "__main__":
 
         EnergyFeatures = namedtuple(
             "EnergyFeatures", (
-            "impact_dist",
-            "sum_signal_evt",
-            "width",
-            "length",
-            "h_max",
-            "local_distance")
+                'log10_charge',
+                'log10_impact',
+                'width',
+                'length',
+                'h_max')
         )
+        # EnergyFeatures = namedtuple(
+        #     "EnergyFeatures", (
+        #     "impact_dist",
+        #     "sum_signal_evt",
+        #     "width",
+        #     "length",
+        #     "h_max",
+        #     "local_distance")
+        # )
 
     class EventFeatures(tb.IsDescription):
         impact_dist = tb.Float32Col(dflt=1, pos=0)
@@ -217,6 +225,7 @@ if __name__ == "__main__":
             n_faint = 0
 
             reco_energy = np.nan
+
             # Not optimal at all, two loop on tel!!!
             # For energy estimation
             if estimate_energy == True:
@@ -228,12 +237,11 @@ if __name__ == "__main__":
                     impact_dist = linalg.length(tel_pos - pos_fit)
 
                     reg_features_tel = EnergyFeatures(
-                        impact_dist=impact_dist / u.m,
-                        sum_signal_evt=tot_signal,
+                        log10_charge=np.log10(tot_signal),
+                        log10_impact=np.log10(impact_dist / u.m),
                         width=moments.width / u.m,
                         length=moments.length / u.m,
-                        h_max=h_max / u.m,
-                        local_distance=moments.r / moments.r.unit
+                        h_max=h_max / u.m
                     )
 
                     try:
