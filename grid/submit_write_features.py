@@ -66,15 +66,16 @@ banned_sites = [
 cam_id_list = ["LSTCam"]
 modes = ['tail']
 #particles = ['gamma', 'proton', 'electron']
-particles = ['gamma', 'proton']
+#particles = ['gamma', 'proton']
+particles = ['gamma']
 #particles = ['proton']
 
 if "estimate_energy" in sys.argv:
     print('Estimate energy for classifier!')
-    estimate_energy = True
+    estimate_energy = 'True'
 else:
     print('No energy estimation!')
-    estimate_energy = False
+    estimate_energy = 'False'
 
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
@@ -88,7 +89,7 @@ pilot_args_write = ' '.join([
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-    '--max_events=50',  # JLK HACK
+#    '--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
@@ -99,6 +100,11 @@ pilot_args_append = ' '.join([
     '--infiles_base', '{in_name}',
     '--table_name', 'feature_events_LSTCam',
     '--outfile', '{out_name}'])
+
+if estimate_energy in 'True':
+    estimate_energy = True
+else:
+    estimate_energy = False
 
 prod3b_filelist = dict()
 if estimate_energy == False:
@@ -118,6 +124,7 @@ for part_id in particles:
 #window_sizes = [25] * 3
 #window_sizes = [20] * 3
 #window_sizes = [5] * 3
+#window_sizes = [4] * 3
 window_sizes = [4] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
@@ -126,7 +133,7 @@ window_sizes = [4] * 3
 start_runs = [0, 0, 0]
 
 # how many jobs to submit at once
-NJobs = 200  # put at < 0 to deactivate
+NJobs = 300  # put at < 0 to deactivate
 
 # define a template name for the file that's going to be written out.
 # the placeholder braces are going to get set during the file-loop

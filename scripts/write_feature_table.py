@@ -257,7 +257,6 @@ if __name__ == "__main__":
                         reg_features_evt[cam_id] += [reg_features_tel]
                     except KeyError:
                         reg_features_evt[cam_id] = [reg_features_tel]
-                        print('Failed energy...')
 
                 if reg_features_evt:
                     predict_energy = regressor.predict_by_event([reg_features_evt])["mean"][0]
