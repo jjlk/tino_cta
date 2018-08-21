@@ -226,8 +226,8 @@ class EventPreparer():
                 # JLK: make selection on biggest cluster
                 with np.errstate(invalid='raise', divide='raise'):
                     try:
-                        moments_reco = self.hillas_parameters(new_geom, pmt_signal_reco)  # for geometry
-                        moments = self.hillas_parameters(new_geom, pmt_signal)  # for discrimination
+                        moments_reco = self.hillas_parameters(new_geom, pmt_signal_reco)  # for geometry (eg direction)
+                        moments = self.hillas_parameters(new_geom, pmt_signal)  # for discrimination and energy reconstruction
 
                     # if width and/or length are zero (e.g. when there is only only one
                     # pixel or when all  pixel are exactly in one row), the

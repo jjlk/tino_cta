@@ -49,12 +49,12 @@ def main():
     min_tel = 3
 
     parser = make_argparser()
-    parser.add_argument('--classifier', type=str,
-                        default=expandvars("$CTA_SOFT/tino_cta/data/classifier_pickle/"
-                                           "classifier_{mode}_{cam_id}_{classifier}.pkl"))
-    parser.add_argument('--regressor', type=str,
-                        default=expandvars("$CTA_SOFT/tino_cta/data/classifier_pickle/"
-                                           "regressor_{mode}_{cam_id}_{regressor}.pkl"))
+    # parser.add_argument('--classifier', type=str,
+    #                     default=expandvars("$CTA_SOFT/tino_cta/data/classifier_pickle/"
+    #                                        "classifier_{mode}_{cam_id}_{classifier}.pkl"))
+    # parser.add_argument('--regressor', type=str,
+    #                     default=expandvars("$CTA_SOFT/tino_cta/data/classifier_pickle/"
+    #                                        "regressor_{mode}_{cam_id}_{regressor}.pkl"))
     parser.add_argument('-o', '--outfile', type=str, default="",
                         help="location to write the classified events to.")
     parser.add_argument('--wave_dir', type=str, default=None,
@@ -69,6 +69,9 @@ def main():
                        help="do protons instead of gammas")
     group.add_argument('--electron', action='store_true',
                        help="do electrons instead of gammas")
+
+    parser.add_argument('--regressor_dir', default='./', help='regressors directory')
+    parser.add_argument('--classifier_dir', default='./', help='regressors directory')
 
     args = parser.parse_args()
 
@@ -94,73 +97,126 @@ def main():
     Imagecutflow = CutFlow("ImageCutFlow")
 
     # takes care of image cleaning
-    cleaner = ImageCleaner(mode=args.mode, cutflow=Imagecutflow,
+    cleaner = ImageCleaner(mode=args.mode,
+                           cutflow=Imagecutflow,
                            wavelet_options=args.raw,
                            tmp_files_directory=args.wave_temp_dir,
-                           skip_edge_events=False, island_cleaning=True)
+                           skip_edge_events=False,
+                           island_cleaning=False)
 
     # the class that does the shower reconstruction
     shower_reco = HillasReconstructor()
 
     preper = EventPreparer(
-        cleaner=cleaner, hillas_parameters=hillas_parameters,
+        cleaner=cleaner,
+        hillas_parameters=hillas_parameters,
         shower_reco=shower_reco,
-        event_cutflow=Eventcutflow, image_cutflow=Imagecutflow,
+        event_cutflow=Eventcutflow,
+        image_cutflow=Imagecutflow,
         # event/image cuts:
         allowed_cam_ids=[],
-        min_ntel=2, min_charge=args.min_charge, min_pixel=3)
+        min_ntel=3,
+        min_charge=args.min_charge,
+        min_pixel=3)
 
+    classifier_files = args.classifier_dir + "/classifier_{mode}_{cam_id}_{classifier}.pkl.gz"
+    classifier = EnergyRegressor.load(
+        classifier_files.format(**{
+            "mode": args.mode,
+            "wave_args": "mixed",
+            "classifier": "AdaBoostClassifier",
+            "cam_id": "{cam_id}"}),
+        cam_id_list=args.cam_ids)
+
+    print(classifier_files.format(**{
+        "mode": args.mode,
+        "wave_args": "mixed",
+        "classifier": "AdaBoostClassifier",
+        "cam_id": "{cam_id}"}))
     # wrapper for the scikit-learn classifier
-    classifier = EventClassifier.load(
-        args.classifier.format(**{
+    # classifier = EventClassifier.load(
+    #     args.classifier.format(**{
+    #         "mode": args.mode,
+    #         "wave_args": "mixed",
+    #         "classifier": 'RandomForestClassifier',
+    #         "cam_id": "{cam_id}"}),
+    #     cam_id_list=args.cam_ids)
+
+    regressor_files = args.regressor_dir + "/regressor_{mode}_{cam_id}_{regressor}.pkl.gz"
+    regressor = EnergyRegressor.load(
+        regressor_files.format(**{
             "mode": args.mode,
             "wave_args": "mixed",
-            "classifier": 'RandomForestClassifier',
+            "regressor": "AdaBoostRegressor",
             "cam_id": "{cam_id}"}),
         cam_id_list=args.cam_ids)
 
-    # wrapper for the scikit-learn regressor
-    regressor = EnergyRegressor.load(
-        args.regressor.format(**{
-            "mode": args.mode,
-            "wave_args": "mixed",
-            "regressor": "RandomForestRegressor",
-            "cam_id": "{cam_id}"}),
-        cam_id_list=args.cam_ids)
+    print(regressor_files.format(**{
+        "mode": args.mode,
+        "wave_args": "mixed",
+        "regressor": "AdaBoostRegressor",
+        "cam_id": "{cam_id}"}))
+
+    # # wrapper for the scikit-learn regressor
+    # regressor = EnergyRegressor.load(
+    #     args.regressor.format(**{
+    #         "mode": args.mode,
+    #         "wave_args": "mixed",
+    #         "regressor": "RandomForestRegressor",
+    #         "cam_id": "{cam_id}"}),
+    #     cam_id_list=args.cam_ids)
 
     ClassifierFeatures = namedtuple(
-        "ClassifierFeatures", (
-            "impact_dist",
-            "sum_signal_evt",
-            "max_signal_cam",
-            "sum_signal_cam",
-            "N_LST",
-            "N_MST",
-            "N_SST",
-            "width",
-            "length",
-            "skewness",
-            "kurtosis",
-            "h_max",
-            "err_est_pos",
-            "err_est_dir"))
+        'ClassifierFeatures', (
+        'log10_reco_energy',
+        'width',
+        'length',
+        'skewness',
+        'kurtosis',
+        'h_max',
+        ))
+
+    # ClassifierFeatures = namedtuple(
+    #     "ClassifierFeatures", (
+    #         "impact_dist",
+    #         "sum_signal_evt",
+    #         "max_signal_cam",
+    #         "sum_signal_cam",
+    #         "N_LST",
+    #         "N_MST",
+    #         "N_SST",
+    #         "width",
+    #         "length",
+    #         "skewness",
+    #         "kurtosis",
+    #         "h_max",
+    #         "err_est_pos",
+    #         "err_est_dir"))
 
     EnergyFeatures = namedtuple(
         "EnergyFeatures", (
-            "impact_dist",
-            "sum_signal_evt",
-            "max_signal_cam",
-            "sum_signal_cam",
-            "N_LST",
-            "N_MST",
-            "N_SST",
-            "width",
-            "length",
-            "skewness",
-            "kurtosis",
-            "h_max",
-            "err_est_pos",
-            "err_est_dir"))
+            'log10_charge',
+            'log10_impact',
+            'width',
+            'length',
+            'h_max'))
+
+    # EnergyFeatures = namedtuple(
+    #     "EnergyFeatures", (
+    #         "impact_dist",
+    #         "sum_signal_evt",
+    #         "max_signal_cam",
+    #         "sum_signal_cam",
+    #         "N_LST",
+    #         "N_MST",
+    #         "N_SST",
+    #         "width",
+    #         "length",
+    #         "skewness",
+    #         "kurtosis",
+    #         "h_max",
+    #         "err_est_pos",
+    #         "err_est_dir"))
 
     # catch ctr-c signal to exit current loop and still display results
     signal_handler = SignalHandler()
@@ -168,24 +224,26 @@ def main():
 
     # this class defines the reconstruction parameters to keep track of
     class RecoEvent(tb.IsDescription):
-        Run_ID = tb.Int16Col(dflt=-1, pos=0)
-        Event_ID = tb.Int16Col(dflt=-1, pos=1)
-        NTels_trig = tb.Int16Col(dflt=0, pos=0)
-        NTels_reco = tb.Int16Col(dflt=0, pos=1)
-        NTels_reco_lst = tb.Int16Col(dflt=0, pos=2)
-        NTels_reco_mst = tb.Int16Col(dflt=0, pos=3)
-        NTels_reco_sst = tb.Int16Col(dflt=0, pos=4)
-        MC_Energy = tb.Float32Col(dflt=np.nan, pos=5)
-        reco_Energy = tb.Float32Col(dflt=np.nan, pos=6)
-        reco_phi = tb.Float32Col(dflt=np.nan, pos=7)
-        reco_theta = tb.Float32Col(dflt=np.nan, pos=8)
-        off_angle = tb.Float32Col(dflt=np.nan, pos=9)
-        xi = tb.Float32Col(dflt=np.nan, pos=10)
-        DeltaR = tb.Float32Col(dflt=np.nan, pos=11)
-        ErrEstPos = tb.Float32Col(dflt=np.nan, pos=12)
-        ErrEstDir = tb.Float32Col(dflt=np.nan, pos=13)
-        gammaness = tb.Float32Col(dflt=np.nan, pos=14)
-        success = tb.BoolCol(dflt=False, pos=15)
+        run_id = tb.Int16Col(dflt=-1, pos=0)
+        event_id = tb.Int32Col(dflt=-1, pos=1)
+        NTels_trig = tb.Int16Col(dflt=0, pos=2)
+        NTels_reco = tb.Int16Col(dflt=0, pos=3)
+        NTels_reco_lst = tb.Int16Col(dflt=0, pos=4)
+        NTels_reco_mst = tb.Int16Col(dflt=0, pos=5)
+        NTels_reco_sst = tb.Int16Col(dflt=0, pos=6)
+        mc_energy = tb.Float32Col(dflt=np.nan, pos=7)
+        reco_energy = tb.Float32Col(dflt=np.nan, pos=8)
+        reco_phi = tb.Float32Col(dflt=np.nan, pos=9)
+        reco_theta = tb.Float32Col(dflt=np.nan, pos=10)
+        off_angle = tb.Float32Col(dflt=np.nan, pos=11)
+        xi = tb.Float32Col(dflt=np.nan, pos=12)
+        DeltaR = tb.Float32Col(dflt=np.nan, pos=13)
+        ErrEstPos = tb.Float32Col(dflt=np.nan, pos=14)
+        ErrEstDir = tb.Float32Col(dflt=np.nan, pos=15)
+        gammaness = tb.Float32Col(dflt=np.nan, pos=16)
+        success = tb.BoolCol(dflt=False, pos=17)
+        score = tb.Float32Col(dflt=np.nan, pos=18)
+        hmax = tb.Float32Col(dflt=np.nan, pos=19)
 
     channel = "gamma" if "gamma" in " ".join(filenamelist) else "proton"
     reco_outfile = tb.open_file(
@@ -199,8 +257,8 @@ def main():
     reco_table = reco_outfile.create_table("/", "reco_events", RecoEvent)
     reco_event = reco_table.row
 
-    allowed_tels = None  # all telescopes
-    allowed_tels = prod3b_tel_ids("L+N+D")
+    #allowed_tels = prod3b_tel_ids("L+N+D")
+    allowed_tels = set(prod3b_tel_ids('subarray_LSTs', site='north'))
     for i, filename in enumerate(filenamelist[:args.last]):
         # print(f"file: {i} filename = {filename}")
 
@@ -209,62 +267,60 @@ def main():
                                      max_events=args.max_events)
 
         # loop that cleans and parametrises the images and performs the reconstruction
-        for (event, hillas_dict, n_tels,
-             tot_signal, max_signals, pos_fit, dir_fit, h_max,
-             err_est_pos, err_est_dir) in preper.prepare_event(source, True):
+        # for (event, hillas_dict, n_tels,
+        #      tot_signal, max_signals, pos_fit, dir_fit, h_max,
+        #      err_est_pos, err_est_dir) in preper.prepare_event(source, True):
+        for (event, n_pixel_dict, hillas_dict, n_tels,
+            tot_signal, max_signals, pos_fit, dir_fit, h_max,
+            err_est_pos, err_est_dir, n_cluster_dict) in preper.prepare_event(
+            source):
 
             # now prepare the features for the classifier
             cls_features_evt = {}
             reg_features_evt = {}
+
             if hillas_dict is not None:
+
               for tel_id in hillas_dict.keys():
+
                 Imagecutflow.count("pre-features")
 
+                cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
                 tel_pos = np.array(event.inst.tel_pos[tel_id][:2]) * u.m
-
                 moments = hillas_dict[tel_id]
-
                 impact_dist = linalg.length(tel_pos - pos_fit)
-                cls_features_tel = ClassifierFeatures(
-                    impact_dist=impact_dist / u.m,
-                    sum_signal_evt=tot_signal,
-                    max_signal_cam=max_signals[tel_id],
-                    sum_signal_cam=moments.size,
-                    N_LST=n_tels["LST"],
-                    N_MST=n_tels["MST"],
-                    N_SST=n_tels["SST"],
+
+                # EnergyFeatures = namedtuple(
+                #     "EnergyFeatures", (
+                #         'log10_charge',
+                #         'log10_impact',
+                #         'width',
+                #         'length',
+                #         'h_max'))
+
+                # Features for energy
+                reg_features_tel = EnergyFeatures(
+                    log10_charge=np.log10(moments.size),
+                    log10_impact=np.log10(impact_dist / u.m),
                     width=moments.width / u.m,
                     length=moments.length / u.m,
-                    skewness=moments.skewness,
-                    kurtosis=moments.kurtosis,
-                    h_max=h_max / u.m,
-                    err_est_pos=err_est_pos / u.m,
-                    err_est_dir=err_est_dir / u.deg
+                    h_max=h_max / u.m
                 )
 
-                reg_features_tel = EnergyFeatures(
-                    impact_dist=impact_dist / u.m,
-                    sum_signal_evt=tot_signal,
-                    max_signal_cam=max_signals[tel_id],
-                    sum_signal_cam=moments.size,
-                    N_LST=n_tels["LST"],
-                    N_MST=n_tels["MST"],
-                    N_SST=n_tels["SST"],
-                    width=moments.width / u.m,
-                    length=moments.length / u.m,
+                # Features for classifier
+                cls_features_tel = ClassifierFeatures(
+                    log10_reco_energy = -1,  # Will be filled after
+                    width=(moments.width / u.m).value,
+                    length=(moments.length / u.m).value,
                     skewness=moments.skewness,
                     kurtosis=moments.kurtosis,
-                    h_max=h_max / u.m,
-                    err_est_pos=err_est_pos / u.m,
-                    err_est_dir=err_est_dir / u.deg
+                    h_max=(h_max / u.m).value
                 )
+
 
                 if np.isnan(cls_features_tel).any() or np.isnan(reg_features_tel).any():
                     continue
-
                 Imagecutflow.count("features nan")
-
-                cam_id = event.inst.subarray.tel[tel_id].camera.cam_id
 
                 try:
                     reg_features_evt[cam_id] += [reg_features_tel]
@@ -275,9 +331,19 @@ def main():
 
             if cls_features_evt and reg_features_evt:
 
-                predict_energ = regressor.predict_by_event([reg_features_evt])["mean"][0]
-                predict_proba = classifier.predict_proba_by_event([cls_features_evt])
-                gammaness = predict_proba[0, 0]
+                reco_energy = regressor.predict_by_event([reg_features_evt])["mean"][0]
+                #print('JLK: reco_energy={}'.format(reco_energy))
+                #print(cls_features_evt)
+                for idx, cls_features in enumerate(cls_features_evt['LSTCam']):
+                    cls_features_evt['LSTCam'][idx] = cls_features_evt['LSTCam'][idx]._replace(log10_reco_energy=np.log10(reco_energy.value))
+                #print(cls_features_evt)
+
+                scores = classifier.decision_function(cls_features_evt['LSTCam'])
+                evt_score = np.average(scores)  # Could be weighted by charge (not done if charge is not in features...)
+
+                # JLK, Does not work properly
+                #predict_proba = classifier.predict_proba_by_event([cls_features_evt])
+                #gammaness = predict_proba[0, 0]
 
                 try:
                     # the MC direction of origin of the simulated particle
@@ -310,7 +376,7 @@ def main():
                 reco_event["NTels_reco_lst"] = n_tels["LST"]
                 reco_event["NTels_reco_mst"] = n_tels["MST"]
                 reco_event["NTels_reco_sst"] = n_tels["SST"]
-                reco_event["reco_Energy"] = predict_energ.to(energy_unit).value
+                reco_event["reco_energy"] = reco_energy.to(energy_unit).value
                 reco_event["reco_phi"] = phi / angle_unit
                 reco_event["reco_theta"] = theta / angle_unit
                 reco_event["off_angle"] = off_angle / angle_unit
@@ -318,15 +384,16 @@ def main():
                 reco_event["DeltaR"] = DeltaR / dist_unit
                 reco_event["ErrEstPos"] = err_est_pos / dist_unit
                 reco_event["ErrEstDir"] = err_est_dir / angle_unit
-                reco_event["gammaness"] = gammaness
+                #reco_event["gammaness"] = gammaness
+                reco_event["score"] = evt_score
                 reco_event["success"] = True
             else:
                 reco_event["success"] = False
 
             # save basic event infos
-            reco_event["MC_Energy"] = event.mc.energy.to(energy_unit).value
-            reco_event["Event_ID"] = event.r1.event_id
-            reco_event["Run_ID"] = event.r1.run_id
+            reco_event["mc_energy"] = event.mc.energy.to(energy_unit).value
+            reco_event["event_id"] = event.r1.event_id
+            reco_event["run_id"] = event.r1.run_id
 
             reco_table.flush()
             reco_event.append()
@@ -347,11 +414,11 @@ def main():
 
         # do some simple event selection
         # and print the corresponding selection efficiency
-        N_selected = len([x for x in reco_table.where(
-            """(NTels_reco > min_tel) & (gammaness > agree_threshold)""")])
-        N_total = len(reco_table)
-        print("\nfraction selected events:")
-        print("{} / {} = {} %".format(N_selected, N_total, N_selected / N_total * 100))
+        #N_selected = len([x for x in reco_table.where(
+        #    """(NTels_reco > min_tel) & (gammaness > agree_threshold)""")])
+        #N_total = len(reco_table)
+        #print("\nfraction selected events:")
+        #print("{} / {} = {} %".format(N_selected, N_total, float(N_selected) / float(N_total) * 100))
 
     except ZeroDivisionError:
         pass

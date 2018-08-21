@@ -97,8 +97,6 @@ if __name__ == "__main__":
     Eventcutflow = CutFlow("EventCutFlow")
     Imagecutflow = CutFlow("ImageCutFlow")
 
-    cleaners =dict()
-
     # takes care of image cleaning (on island cleaning)
     cleaner = ImageCleaner(mode=args.mode,
                            cutflow=Imagecutflow,
@@ -248,7 +246,7 @@ if __name__ == "__main__":
                     impact_dist = linalg.length(tel_pos - pos_fit)
 
                     reg_features_tel = EnergyFeatures(
-                        log10_charge=np.log10(tot_signal),
+                        log10_charge=np.log10(moments.size),
                         log10_impact=np.log10(impact_dist / u.m),
                         width=moments.width / u.m,
                         length=moments.length / u.m,
