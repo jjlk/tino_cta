@@ -94,9 +94,9 @@ pilot_args_append = ' '.join([
     '--table_name', 'feature_events_LSTCam',
     '--outfile', '{out_name}'])
 
-
+prod3b_filelist = dict()
 prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_perf.list"))
-prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_perf.list"))
+prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/electron_perf.list"))
 prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/proton_perf.list"))
 
 file_list_to_run_on = list()
@@ -145,14 +145,12 @@ input_sandbox = [expandvars('$CTA_SOFT/tino_cta/tino_cta'),
                  'LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/v3_1/mr_filter'
                  ]
 
-if estimate_energy == True:
-    #model_path_template = "LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
-    #model_path_template = "LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/meta/ml_models/{}/{}_{}_{}_{}.pkl"
-    model_path_template = ['LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/prod3b/lapalma_lsts_mult3/regressor/regressor_{}_{}_AdaBoostRegressor.pkl.gz',
-                           'LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/prod3b/lapalma_lsts_mult3/regressor/classifier_{}_{}_AdaBoostClassifier.pkl.gz']
-    for cam_id in cam_id_list:
-        for mode in modes:
-            for model in model_path_template:
+
+model_path_template = ['LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/prod3b/lapalma_lsts_mult3/regressor/regressor_{}_{}_AdaBoostRegressor.pkl.gz',
+                       'LFN:/vo.cta.in2p3.fr/user/j/jlefaucheur/cta/prod3b/lapalma_lsts_mult3/classifier/classifier_{}_{}_AdaBoostClassifier.pkl.gz']
+for cam_id in cam_id_list:
+    for mode in modes:
+        for model in model_path_template:
             model_to_upload = model.format(mode, cam_id)
             print(model_to_upload)
             input_sandbox.append(model_to_upload)
@@ -333,10 +331,11 @@ for i, filelist in enumerate(file_list_to_run_on):
         if window_sizes[i] > 1:
             names = []
             for mode in modes:
-                if estimate_energy is True:
-                    names.append(('features_ereco_events_' + mode, output_filenames[mode]))
-                else:
-                    names.append(('features_events_' + mode, output_filenames[mode]))
+                names.append(('events' + mode, output_filenames[mode]))
+                #if estimate_energy is True:
+                #    names.append(('features_ereco_events_' + mode, output_filenames[mode]))
+                #else:
+                #    names.append(('features_events_' + mode, output_filenames[mode]))
             for in_name, out_name in names:
                 print('in_name: {}, out_name: {}'.format(in_name, out_name))
             #for in_name, out_name in [('classified_events_wave', output_filename_wave),
