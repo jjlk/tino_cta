@@ -67,7 +67,8 @@ class EventPreparer():
     def __init__(self, calib=None, cleaner=None, hillas_parameters=None,
                  shower_reco=None, event_cutflow=None, image_cutflow=None,
                  # event/image cuts:
-                 allowed_cam_ids=None, min_ntel=2, min_charge=50, min_pixel=3):
+                 allowed_cam_ids=None, min_ntel=2, min_charge=50, min_pixel=3,
+                 force_cleaner_wavelet=None):
 
         # configuration for the camera calibrator
         # modifies the integration window to be more like in MARS
@@ -85,6 +86,10 @@ class EventPreparer():
         self.hillas_parameters = hillas_parameters or hillas.hillas_parameters
         self.shower_reco = shower_reco or \
             raise_error("need to provide a shower reconstructor....")
+
+        self.force_cleaner_wavelet = force_cleaner_wavelet
+        if force_cleaner_wavelet is not None:
+            print('### INFO> Passing cleaner based on wavelet to evt preparer')
 
         # adding cutflows and cuts for events and images
         self.event_cutflow = event_cutflow or CutFlow("EventCutFlow")
@@ -184,6 +189,10 @@ class EventPreparer():
                         pmt_signal, new_geom = \
                             self.cleaner.clean(pmt_signal.copy(), camera)
 
+                        if self.force_cleaner_wavelet is not None:
+                            pmt_signal_force_wt, new_geom_force_wt = \
+                                self.force_cleaner_wavelet.clean(pmt_signal.copy(), camera)
+                            # print('### INFO> Evt cleaned with wavelet in force mode...')
                     # Done for the biggest island
                     # if self.image_cutflow.cut("min pixel", pmt_signal) or \
                     #    self.image_cutflow.cut("min charge", np.sum(pmt_signal)):
@@ -195,8 +204,11 @@ class EventPreparer():
                 except EdgeEvent:
                     continue
 
-                # Image to be used for reconstruction, biggest cluster
-                pmt_signal_reco = pmt_signal.copy()
+                # Image to be used for reconstruction, biggest cluster (WT if force_mode is activated)
+                if self.force_cleaner_wavelet is not None:
+                    pmt_signal_reco = pmt_signal_force_wt.copy()
+                else:
+                    pmt_signal_reco = pmt_signal.copy()
                 pmt_signal_reco = geometry_converter.image_1d_to_2d(pmt_signal_reco,
                                                                     camera.cam_id)  ## Should be change for ASTRI
                 pmt_signal_reco = filter_pixels_clusters(pmt_signal_reco)

@@ -11,7 +11,9 @@ from ctapipe.image.geometry_converter import (convert_geometry_hex1d_to_rect2d,
                                               chec_to_2d_array, array_2d_to_chec)
 
 try:
-    from pywicta.denoising.wavelets_mrfilter import WaveletTransform
+    # OLD OLD
+    #from pywicta.denoising.wavelets_mrfilter import WaveletTransform
+    from pywicta.denoising.wavelets_mrtransform import WaveletTransform
     from pywicta.denoising import cdf
     from pywicta.denoising.inverse_transform_sampling import \
         EmpiricalDistribution as EmpDist
@@ -240,14 +242,18 @@ class ImageCleaner:
             self.wavelet_options = \
                 {"ASTRICam": wavelet_options or "-K -C1 -m3 -s2,2,3,3 -n4",
                  "DigiCam": wavelet_options or "-K -C1 -m3 -s6.274,2.629,7.755,0.076 -n4",
-                 "FlashCam": wavelet_options or "-K -C1 -m3 -s4,4,5,4 -n4",
+                 "FlashCam": wavelet_options or "-K -C1 -m3 -s4, 4, 5, 4 -n4",
                  "NectarCam": wavelet_options or
                     "-K -C1 -m3 -s13.013,2.549,6.559,1.412 -n4",
-                 "LSTCam": wavelet_options or "-K -C1 -m3 -s23.343,2.490,-2.856,-0.719 -n4",
+                 #"LSTCam": wavelet_options or "-K -C1 -m3 -s23.343,2.490,-2.856,-0.719 -n4",
+                 "LSTCam": wavelet_options or "-f hard_filtering -t 3,0.2 -L drop --kill-isolated-pixels --cluster-threshold=0",
                  # WARNING: DUMMY VALUES
                  "CHEC": wavelet_options or "-K -C1 -m3 -s2,2,3,3 -n4"
                  }
+
+            # WARNING WARNING WARNING
             # camera models for noise injection
+            # JLK: Need to be updated if calib/signal integration is changed!!!!
             self.noise_model = \
                 {"ASTRICam": EmpDist(cdf.ASTRI_CDF_FILE),
                  "DigiCam": EmpDist(cdf.DIGICAM_CDF_FILE),
@@ -324,13 +330,15 @@ class ImageCleaner:
         return new_img, new_geom
 
     def clean_wave_hex(self, img, cam_geom):
+        print("#JLK: HOHOHOHOHOHOH")
         rot_geom, rot_img = convert_geometry_hex1d_to_rect2d(
             cam_geom, img, cam_geom.cam_id)
 
-        cleaned_img = self.wavelet_cleaning(
-            rot_img, raw_option_string=self.wavelet_options[cam_geom.cam_id],
-            noise_distribution=self.noise_model[cam_geom.cam_id])
-
+        cleaned_img = self.wavelet_cleaning(rot_img,
+                                            raw_option_string=self.wavelet_options[cam_geom.cam_id],
+                                            noise_distribution=self.noise_model[cam_geom.cam_id])
+        print(self.wavelet_options[cam_geom.cam_id])
+        print(self.noise_model[cam_geom.cam_id])
         self.cutflow.count("wavelet cleaning")
 
         # cleaned_img = self.island_cleaning(cleaned_img,

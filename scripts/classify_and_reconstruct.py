@@ -73,7 +73,24 @@ def main():
     parser.add_argument('--regressor_dir', default='./', help='regressors directory')
     parser.add_argument('--classifier_dir', default='./', help='regressors directory')
 
+    parser.add_argument('--force_wavelet_only_geom', default='False',
+                        help='Use wavelet cleaning only for geometry reconstruction. '
+                             'Energy and gamaness estimation done with tailcut cleaning.')
+
     args = parser.parse_args()
+
+    #print(type(args.force_wavelet_only_geom))
+    #print(args.force_wavelet_only_geom)
+    #exit()
+
+    force_wavelet_only_geom = args.force_wavelet_only_geom
+
+    if force_wavelet_only_geom in 'True':
+        force_wavelet_only_geom = True
+    else:
+        force_wavelet_only_geom = False
+
+    print('### INFO> Force WT cleaning only for geom reco!!!!')
 
     if args.infile_list:
         filenamelist = []
@@ -96,8 +113,23 @@ def main():
     Eventcutflow = CutFlow("EventCutFlow")
     Imagecutflow = CutFlow("ImageCutFlow")
 
-    # takes care of image cleaning
-    cleaner = ImageCleaner(mode=args.mode,
+    # Iniatilisation if image cleaner
+    if (force_wavelet_only_geom is True) and (args.mode in 'wave'):
+        force_mode = 'tail'
+        # Cleaner for geom reco
+        force_cleaner_wavelet = ImageCleaner(mode='wave',
+                                             cutflow=CutFlow('Dummy'),
+                                             wavelet_options=args.raw,
+                                             tmp_files_directory=args.wave_temp_dir,
+                                             skip_edge_events=False,
+                                             island_cleaning=False)
+        print('### INFO> Building cleaner based on wavelet')
+    else:
+        force_mode = args.mode
+        force_cleaner_wavelet = None
+
+    # Std cleaner
+    cleaner = ImageCleaner(mode=force_mode,
                            cutflow=Imagecutflow,
                            wavelet_options=args.raw,
                            tmp_files_directory=args.wave_temp_dir,
@@ -117,19 +149,20 @@ def main():
         allowed_cam_ids=[],
         min_ntel=3,
         min_charge=args.min_charge,
-        min_pixel=3)
+        min_pixel=3,
+        force_cleaner_wavelet=force_cleaner_wavelet)
 
     classifier_files = args.classifier_dir + "/classifier_{mode}_{cam_id}_{classifier}.pkl.gz"
     classifier = EnergyRegressor.load(
         classifier_files.format(**{
-            "mode": args.mode,
+            "mode": force_mode,
             "wave_args": "mixed",
             "classifier": "AdaBoostClassifier",
             "cam_id": "{cam_id}"}),
         cam_id_list=args.cam_ids)
 
     print(classifier_files.format(**{
-        "mode": args.mode,
+        "mode": force_mode,
         "wave_args": "mixed",
         "classifier": "AdaBoostClassifier",
         "cam_id": "{cam_id}"}))
@@ -145,14 +178,14 @@ def main():
     regressor_files = args.regressor_dir + "/regressor_{mode}_{cam_id}_{regressor}.pkl.gz"
     regressor = EnergyRegressor.load(
         regressor_files.format(**{
-            "mode": args.mode,
+            "mode": force_mode,
             "wave_args": "mixed",
             "regressor": "AdaBoostRegressor",
             "cam_id": "{cam_id}"}),
         cam_id_list=args.cam_ids)
 
     print(regressor_files.format(**{
-        "mode": args.mode,
+        "mode": force_mode,
         "wave_args": "mixed",
         "regressor": "AdaBoostRegressor",
         "cam_id": "{cam_id}"}))
@@ -201,7 +234,7 @@ def main():
             'length',
             'h_max'))
 
-    # EnergyFeatures = namedtuple(
+    # h_max = namedtuple(
     #     "EnergyFeatures", (
     #         "impact_dist",
     #         "sum_signal_evt",
