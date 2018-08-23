@@ -82,7 +82,7 @@ pilot_args_write = ' '.join([
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-#    '--max_events=50',  # JLK HACK
+    '--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
@@ -91,7 +91,7 @@ pilot_args_append = ' '.join([
     source_ctapipe, '&&',
     './append_tables.py',
     '--infiles_base', '{in_name}',
-    '--table_name', 'feature_events_LSTCam',
+    '--table_name', 'reco_events',
     '--outfile', '{out_name}'])
 
 prod3b_filelist = dict()
@@ -331,7 +331,7 @@ for i, filelist in enumerate(file_list_to_run_on):
         if window_sizes[i] > 1:
             names = []
             for mode in modes:
-                names.append(('events' + mode, output_filenames[mode]))
+                names.append(('dl2_events_' + mode, output_filenames[mode]))
                 #if estimate_energy is True:
                 #    names.append(('features_ereco_events_' + mode, output_filenames[mode]))
                 #else:
