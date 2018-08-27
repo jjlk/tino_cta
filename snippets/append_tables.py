@@ -33,7 +33,8 @@ def merge_list_of_pytables(filename_list, destination, table_name):
         else:
             #pyt_table_t = pyt_infile.root.reco_events
             # JLK hacked...
-            pyt_table_t = pyt_infile.root.feature_events_LSTCam
+            # pyt_table_t = pyt_infile.root.feature_events_LSTCam
+            pyt_table_t = pyt_infile.get_node('/' + table_name)
             pyt_table_t.append_where(dstTable=pyt_table)
 
     print("merged {} files".format(len(filename_list)))
