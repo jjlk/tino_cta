@@ -268,7 +268,7 @@ def main():
         reco_energy = tb.Float32Col(dflt=np.nan, pos=8)
         reco_phi = tb.Float32Col(dflt=np.nan, pos=9)
         reco_theta = tb.Float32Col(dflt=np.nan, pos=10)
-        off_angle = tb.Float32Col(dflt=np.nan, pos=11)
+        offset = tb.Float32Col(dflt=np.nan, pos=11)
         xi = tb.Float32Col(dflt=np.nan, pos=12)
         DeltaR = tb.Float32Col(dflt=np.nan, pos=13)
         ErrEstPos = tb.Float32Col(dflt=np.nan, pos=14)
@@ -402,7 +402,7 @@ def main():
                 array_pointing = linalg.set_phi_theta(0 * u.deg, 20. * u.deg)
                 # angular offset between the reconstructed direction and the array
                 # pointing
-                off_angle = linalg.angle(dir_fit, array_pointing)
+                offset = linalg.angle(dir_fit, array_pointing)
 
                 reco_event["NTels_trig"] = len(event.dl0.tels_with_data)
                 reco_event["NTels_reco"] = len(hillas_dict)
@@ -412,7 +412,7 @@ def main():
                 reco_event["reco_energy"] = reco_energy.to(energy_unit).value
                 reco_event["reco_phi"] = phi / angle_unit
                 reco_event["reco_theta"] = theta / angle_unit
-                reco_event["off_angle"] = off_angle / angle_unit
+                reco_event["offset"] = off_angle / angle_unit
                 reco_event["xi"] = xi / angle_unit
                 reco_event["DeltaR"] = DeltaR / dist_unit
                 reco_event["ErrEstPos"] = err_est_pos / dist_unit

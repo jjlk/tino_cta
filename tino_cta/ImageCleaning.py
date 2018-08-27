@@ -230,12 +230,25 @@ class ImageCleaner:
             self.clean = self.clean_none
         elif mode.startswith("wave"):
             self.clean = self.clean_wave
+            # self.wavelet_cleaning = \
+            #     lambda *arg, **kwargs: WaveletTransform().clean_image(
+            #         *arg, **kwargs,
+            #         #kill_isolated_pixels=island_cleaning,
+            #         kill_isolated_pixels=False,  # JLK test
+            #         tmp_files_directory=tmp_files_directory,
+            #         mrfilter_directory=mrfilter_directory)
+            # JLK, Hack on hack...
             self.wavelet_cleaning = \
                 lambda *arg, **kwargs: WaveletTransform().clean_image(
                     *arg, **kwargs,
-                    kill_isolated_pixels=island_cleaning,
+                    type_of_filtering='hard_filtering',
+                    filter_thresholds=[3, 0.2],
+                    last_scale_treatment='drop',
+                    kill_isolated_pixels=True,
+                    detect_only_positive_structures=False,
                     tmp_files_directory=tmp_files_directory,
-                    mrfilter_directory=mrfilter_directory)
+                    clusters_threshold=0)
+                    #mrfilter_directory=mrfilter_directory)
             # self.island_threshold = 1.5
 
             # command line parameters for the mr_filter call
@@ -316,7 +329,8 @@ class ImageCleaner:
                                         " for geometry {}".format(cam_geom.cam_id))
 
         cleaned_img = self.wavelet_cleaning(
-            array2d_img, raw_option_string=self.wavelet_options[cam_geom.cam_id],
+            array2d_img,
+            raw_option_string=self.wavelet_options[cam_geom.cam_id],
             noise_distribution=self.noise_model[cam_geom.cam_id])
 
         self.cutflow.count("wavelet cleaning")
@@ -330,15 +344,19 @@ class ImageCleaner:
         return new_img, new_geom
 
     def clean_wave_hex(self, img, cam_geom):
-        print("#JLK: HOHOHOHOHOHOH")
-        rot_geom, rot_img = convert_geometry_hex1d_to_rect2d(
-            cam_geom, img, cam_geom.cam_id)
+        #print("#JLK: HOHOHOHOHOHOH")
 
-        cleaned_img = self.wavelet_cleaning(rot_img,
-                                            raw_option_string=self.wavelet_options[cam_geom.cam_id],
-                                            noise_distribution=self.noise_model[cam_geom.cam_id])
-        print(self.wavelet_options[cam_geom.cam_id])
-        print(self.noise_model[cam_geom.cam_id])
+        # JLK: Use Pywi as convertor
+        # rot_geom, rot_img = convert_geometry_hex1d_to_rect2d(
+        #     cam_geom, img, cam_geom.cam_id)
+        rot_img = geometry_converter.image_1d_to_2d(img, cam_geom.cam_id)
+
+        # cleaned_img = self.wavelet_cleaning(rot_img,
+        #                                     #raw_option_string=self.wavelet_options[cam_geom.cam_id],
+        #                                     noise_distribution=self.noise_model[cam_geom.cam_id])
+
+        wt_cleaner = WaveletTransform()
+        cleaned_img = self.wavelet_cleaning(rot_img, noise_distribution=self.noise_model[cam_geom.cam_id])
         self.cutflow.count("wavelet cleaning")
 
         # cleaned_img = self.island_cleaning(cleaned_img,
@@ -346,10 +364,14 @@ class ImageCleaner:
         #                                    threshold=self.island_threshold)
         cleaned_img = self.island_cleaning(cleaned_img)
 
-        unrot_geom, unrot_img = convert_geometry_rect2d_back_to_hexe1d(
-            rot_geom, cleaned_img, cam_geom.cam_id)
+        # JLK: Use Pywi as convertor
+        # unrot_geom, unrot_img = convert_geometry_rect2d_back_to_hexe1d(
+        #     rot_geom, cleaned_img, cam_geom.cam_id)
 
-        return unrot_img, unrot_geom
+        unrot_img = geometry_converter.image_2d_to_1d(cleaned_img, cam_geom.cam_id)
+
+        #return unrot_img, unrot_geom
+        return unrot_img, cam_geom
 
     def clean_tail(self, img, cam_geom):
         mask = tailcuts_clean(
