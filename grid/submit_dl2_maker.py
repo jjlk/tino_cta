@@ -59,7 +59,11 @@ banned_sites = [
     'LCG.CETA.es',
     'LCG.DESY-ZEUTHEN.de',
     'LCG.GRIF.fr',
-    'ARC.Prague.cz'
+    'ARC.Prague.cz',
+    'ARC.SE-SNIC-T2.se',
+    'LCG.CNAF.it',
+    'LCG.CYFRONET.pl',
+    'LCG.FRASCATI.it',
 ]
 
 #cam_id_list = ["LSTCam", "NectarCam", "DigiCam"]
@@ -67,8 +71,9 @@ cam_id_list = ["LSTCam"]
 modes = ['tail']
 #particles = ['gamma', 'proton', 'electron']
 #particles = ['gamma', 'proton']
-particles = ['gamma']
-#particles = ['proton']
+#particles = ['gamma']
+particles = ['proton']
+#particles = ['electron']
 
 source_ctapipe = \
     'source /cvmfs/cta.in2p3.fr/software/miniconda/bin/activate ctapipe_v0.5.3'
@@ -82,7 +87,7 @@ pilot_args_write = ' '.join([
     '--outfile {outfile}',
     '--indir ./ --infile_list *.simtel.gz',
     '--min_charge=50',
-    '--max_events=50',  # JLK HACK
+    #'--max_events=50',  # JLK HACK
     '--{mode}',
     '--cam_ids'] + cam_id_list)
 
@@ -95,9 +100,11 @@ pilot_args_append = ' '.join([
     '--outfile', '{out_name}'])
 
 prod3b_filelist = dict()
-prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_perf.list"))
-prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/electron_perf.list"))
-prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/proton_perf.list"))
+prod3b_filelist['gamma'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/gamma_perf_reduced.list"))
+#prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/electron_perf_reduced.list"))
+prod3b_filelist['electron'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/electron_perf_reduced2.list"))
+#prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/proton_perf_reduced.list"))
+prod3b_filelist['proton'] = open(expandvars("$CTA_DATA/Prod3b_NSB1x/LaPalma/proton_perf_reduced2.list"))
 
 file_list_to_run_on = list()
 for part_id in particles:
@@ -105,7 +112,7 @@ for part_id in particles:
 
 # Number of files per job
 #window_sizes = [25] * 3
-window_sizes = [4] * 3
+window_sizes = [10] * 3
 
 # I used the first few files to train the classifier and regressor -- skip them
 #start_runs = [50, 50, 0]
