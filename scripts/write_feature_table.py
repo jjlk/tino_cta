@@ -192,6 +192,7 @@ if __name__ == "__main__":
         reco_core_x = tb.FloatCol(dflt=1, pos=28)
         reco_core_y = tb.FloatCol(dflt=1, pos=29)
         mc_h_first_int = tb.FloatCol(dflt=1, pos=30)
+        offset = tb.Float32Col(dflt=np.nan, pos=31)
 
     feature_outfile  = tb.open_file(args.outfile, mode="w")
     feature_table = {}
@@ -230,9 +231,14 @@ if __name__ == "__main__":
                     
             # and how the reconstructed direction compares to that
             xi = linalg.angle(dir_fit, shower_org)
-            
-            n_faint = 0
 
+            # TODO: replace with actual array pointing direction
+            array_pointing = linalg.set_phi_theta(0 * u.deg, 20. * u.deg)
+            # angular offset between the reconstructed direction and the array
+            # pointing
+            offset = linalg.angle(dir_fit, array_pointing)
+
+            n_faint = 0
             reco_energy = np.nan
 
             # Not optimal at all, two loop on tel!!!
@@ -311,6 +317,8 @@ if __name__ == "__main__":
                 feature_events[cam_id]["reco_core_x"] = pos_fit[0] / dist_unit
                 feature_events[cam_id]["reco_core_y"] = pos_fit[1] / dist_unit
                 feature_events[cam_id]["mc_h_first_int"] = event.mc.h_first_int / dist_unit
+                feature_events[cam_id]["offset"] = off_angle / angle_unit
+
                 feature_events[cam_id].append()
 
 
