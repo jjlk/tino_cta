@@ -276,7 +276,7 @@ def main():
         gammaness = tb.Float32Col(dflt=np.nan, pos=16)
         success = tb.BoolCol(dflt=False, pos=17)
         score = tb.Float32Col(dflt=np.nan, pos=18)
-        hmax = tb.Float32Col(dflt=np.nan, pos=19)
+        h_max = tb.Float32Col(dflt=np.nan, pos=19)
 
     channel = "gamma" if "gamma" in " ".join(filenamelist) else "proton"
     reco_outfile = tb.open_file(
@@ -420,6 +420,7 @@ def main():
                 #reco_event["gammaness"] = gammaness
                 reco_event["score"] = evt_score
                 reco_event["success"] = True
+                reco_event["h_max"] = h_max / dist_unit
             else:
                 reco_event["success"] = False
 
